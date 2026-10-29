@@ -75,5 +75,3 @@ Tests (no packages or printer needed): `python -m unittest discover -s tests -v`
 - The installer isn't code-signed, so a downloaded copy shows a SmartScreen warning
   ("More info → Run anyway"), and laptops with Smart App Control turned on block it.
   Copying it from a USB stick avoids the SmartScreen warning.
-- Hokie Passport scans can't look anyone up (that data source was removed in 2024); use the
-  Swapcard badge code or VT PID instead.

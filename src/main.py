@@ -66,14 +66,6 @@ def _printer_set_up():
 
     return dymo_printer, dymo_label
 
-def _is_hokiep_scan(input):
-    hokiep_scan = input.lower()
-    hokiep_id = input
-    if len(hokiep_scan) == 11 and hokiep_scan[0] == 'a' and hokiep_scan[-1] == 'a':
-        hokiep_id = hokiep_scan[1:-1]
-        return True, hokiep_id
-    return False, hokiep_id
-
 # printer dispatch
 printer, label = _printer_set_up()
 
@@ -116,10 +108,8 @@ while True:
 
         first_name, last_name, major, year, regis_id = '', '', '', '', ''
 
-        is_student_id, student_id = _is_hokiep_scan(inputs['BRID'])
-        
         # Parse information from SwapCard API queries
-        if not inputs["manual_input"] and not is_student_id:
+        if not inputs["manual_input"]:
             try:
                 # Option 1 - Search by registration ID
                 if not inputs['BRID'] == '':
@@ -187,11 +177,6 @@ while True:
             except Exception as err:
                 print("Warning - Swapcard lookup failed:", type(err).__name__, err)
                 continue
-
-        # Hokie Passport scan - its backup database lookup was removed
-        elif is_student_id:
-            print("Warning - Hokie Passport lookup is not available. Use the Swapcard badge code or VT PID.")
-            continue
 
         # Parse directly from manual inputs
         else:

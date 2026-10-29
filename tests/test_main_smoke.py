@@ -890,32 +890,17 @@ class LookupFailureTests(AppTestCase):
         self.assertSkippedThenContinued(run, "Warning - No Input Detected (Content API Query)\n")
 
 
-class HokiePassportTests(AppTestCase):
-    """(c) A Hokie Passport scan warns instead of raising NameError."""
+class BadgeCodeShapeTests(AppTestCase):
+    """Every badge code goes to Swapcard; Hokie Passport scans are no longer special."""
 
-    HOKIE_WARNING = ("Warning - Hokie Passport lookup is not available. "
-                     "Use the Swapcard badge code or VT PID.\n")
-
-    def test_hokie_passport_scan(self):
-        for code in ("a906123456a", "A906123456A", "a906123456A"):
-            with self.subTest(code=code):
-                script = [submit(BRID=code), manual("Next", "Student", "Civil Engineering", "Senior", "R"),
-                          close()]
-                run = run_app(script)
-                self.assertCleanRun(run, reads=3)
-                self.assertIn(self.HOKIE_WARNING, run.stdout)
-                self.assertEqual(run.people_posts(), [], "a Hokie Passport scan must not query Swapcard")
-                self.assertPrintedOnce(run, "Next", "Student", "Civil Engineering", "Senior", "R")
-
-    def test_near_misses_go_to_swapcard(self):
-        for code in ("a906123456b", "a90612345a", "b906123456a"):
+    def test_codes_shaped_like_hokie_passport_go_to_swapcard(self):
+        for code in ("a906123456a", "A906123456A", "a906123456b"):
             with self.subTest(code=code):
                 run = run_app([submit(BRID=code), close()],
                               people={("qrCodes", code): [make_person(barcode=code)]})
                 self.assertCleanRun(run)
                 self.assertNotIn("Hokie Passport", run.stdout)
                 self.assertPrintedOnce(run, "Jane", "Doe", "Mechanical Engineering", "Junior", code)
-
 
 class WindowCloseAndDebounceTests(AppTestCase):
     """(d) Closing the window is handled before the 3-second scanner debounce."""
