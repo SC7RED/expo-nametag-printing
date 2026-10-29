@@ -1,0 +1,171 @@
+THIRD-PARTY NOTICES - Expo Nametag Printing
+===========================================
+
+This folder was built with PyInstaller 6.22.3 from Python 3.13.17 (32-bit).
+It includes the third-party software listed below. Each entry gives the
+version, the license (SPDX identifier), where the source is, where the
+bundled copy is in this folder, and which files in licenses\ hold the full
+license texts. Licenses were checked against each package's PyPI metadata
+and the license files shipped in its wheel.
+
+The full license texts are in the licenses\ folder next to this file. Each
+file is named <package>-<version>-<original file name>, copied unchanged
+from the package (FreeSimpleGUI's LGPL-3.0 text comes from the License field
+of its package metadata, because its wheel ships no separate license file).
+licenses\GPL-3.0.txt is the GNU GPL v3 from
+https://www.gnu.org/licenses/gpl-3.0.txt, which LGPL-3.0 refers to.
+
+Paths below are relative to this folder. "inside the .exe files" means the
+modules are compiled into the archive appended to ExpoNametag.exe.
+
+
+Python packages
+---------------
+
+FreeSimpleGUI 5.3.0.post1
+  License : LGPL-3.0-or-later (GNU Lesser General Public License v3 or later)
+            https://www.gnu.org/licenses/lgpl-3.0.txt
+            LGPL-3.0 adds to the GNU GPL v3:
+            https://www.gnu.org/licenses/gpl-3.0.txt
+  Texts   : licenses\FreeSimpleGUI-5.3.0.post1-METADATA-License.txt (LGPL-3.0)
+            licenses\GPL-3.0.txt (the GNU GPL v3 that LGPL-3.0 refers to)
+            licenses\FreeSimpleGUI-5.3.0.post1-NOTICE
+  Source  : https://github.com/spyoungtech/FreeSimpleGui
+            https://pypi.org/project/FreeSimpleGUI/5.3.0.post1/
+  Bundled : _internal\FreeSimpleGUI\ (unmodified, as plain .py source files)
+  Note    : FreeSimpleGUI is not compiled into the .exe files. It ships as
+            .py source so you can replace it: put your own (modified or newer)
+            FreeSimpleGUI package in _internal\FreeSimpleGUI\, keeping the same
+            folder layout, and start the app again.
+            FreeSimpleGUI is a fork of the LGPL-3.0 PySimpleGUI project.
+            "PySimpleGUI" is a trademark of Satisfice Labs LLC. FreeSimpleGUI
+            has no association with PySimpleGUI or Satisfice Labs LLC.
+
+pywin32 312
+  License : PSF-2.0 (per PyPI metadata). The license files for the parts used
+            here (win32, win32com, pythonwin) are BSD-3-Clause style:
+            "Copyright (c) 1994-2008, Mark Hammond" and
+            "Copyright (c) 1996-2008, Greg Stein and Mark Hammond".
+  Texts   : licenses\pywin32-312-*  (every license file the package declares,
+            named after its folder in pywin32, e.g. pywin32-312-win32-License.txt)
+  Source  : https://github.com/mhammond/pywin32
+            https://pypi.org/project/pywin32/312/
+  Bundled : _internal\pywin32_system32\ (pythoncom313.dll, pywintypes313.dll),
+            _internal\win32\, _internal\pythonwin\, and the win32com and
+            win32 modules inside the .exe files
+
+requests 2.34.2
+  License : Apache-2.0  https://www.apache.org/licenses/LICENSE-2.0
+  Texts   : licenses\requests-2.34.2-LICENSE, licenses\requests-2.34.2-NOTICE
+  Source  : https://github.com/psf/requests
+            https://pypi.org/project/requests/2.34.2/
+  Bundled : inside ExpoNametag.exe
+  NOTICE  : Requests
+            Copyright 2019 Kenneth Reitz
+
+python-dotenv 1.2.4
+  License : BSD-3-Clause
+  Texts   : licenses\python-dotenv-1.2.4-LICENSE
+  Source  : https://github.com/theskumar/python-dotenv
+            https://pypi.org/project/python-dotenv/1.2.4/
+  Bundled : inside ExpoNametag.exe
+
+urllib3 2.8.0
+  License : MIT
+  Texts   : licenses\urllib3-2.8.0-LICENSE.txt
+  Source  : https://github.com/urllib3/urllib3
+            https://pypi.org/project/urllib3/2.8.0/
+  Bundled : inside ExpoNametag.exe
+
+idna 3.20
+  License : BSD-3-Clause
+  Texts   : licenses\idna-3.20-LICENSE.md
+  Source  : https://github.com/kjd/idna
+            https://pypi.org/project/idna/3.20/
+  Bundled : inside ExpoNametag.exe
+
+charset-normalizer 3.5.2
+  License : MIT
+  Texts   : licenses\charset-normalizer-3.5.2-LICENSE
+  Source  : https://github.com/jawah/charset_normalizer
+            https://pypi.org/project/charset-normalizer/3.5.2/
+  Bundled : _internal\charset_normalizer\ (compiled .pyd files) and modules
+            inside ExpoNametag.exe
+
+certifi 2026.7.22
+  License : MPL-2.0  https://mozilla.org/MPL/2.0/
+  Texts   : licenses\certifi-2026.7.22-LICENSE
+  Source  : The Source Code Form is available at
+            https://github.com/certifi/python-certifi and
+            https://pypi.org/project/certifi/2026.7.22/
+  Bundled : _internal\certifi\cacert.pem (unmodified) and modules inside
+            ExpoNametag.exe
+
+
+Python runtime
+--------------
+
+CPython 3.13.17 (32-bit Windows build)
+  License : PSF-2.0 (Python Software Foundation License Version 2)
+            https://docs.python.org/3.13/license.html
+  Texts   : licenses\CPython-3.13.17-LICENSE.txt (the license file of this
+            Windows build: PSF license, Microsoft runtime terms, bzip2, libffi,
+            OpenSSL, Tcl and Tk)
+            licenses\CPython-3.13.17-license.html ("History and License" page
+            of the 3.13.17 docs: also covers libmpdec, zlib and the other code
+            built into CPython)
+  Source  : https://github.com/python/cpython (tag v3.13.17)
+            https://www.python.org/
+  Bundled : _internal\python313.dll, _internal\base_library.zip, the
+            extension modules (_internal\*.pyd), and standard-library modules
+            inside the .exe files
+  Third-party code that ships with CPython's Windows build and is bundled
+  here (full texts in the two CPython files above):
+    - OpenSSL 3.5.9 - Apache-2.0 - https://www.openssl.org/
+      _internal\libcrypto-3.dll, _internal\libssl-3.dll
+    - libffi - MIT - https://sourceware.org/libffi/
+      _internal\libffi-8.dll
+    - zlib 1.3.1 - Zlib - https://zlib.net/
+      _internal\zlib1.dll
+    - bzip2/libbzip2 1.0.8 - bzip2-1.0.6 - https://sourceware.org/bzip2/
+      built into _internal\_bz2.pyd
+    - XZ Utils (liblzma) - 0BSD / public domain - https://tukaani.org/xz/
+      built into _internal\_lzma.pyd
+    - mpdecimal (libmpdec) 4.0.0 - BSD-2-Clause - https://www.bytereef.org/mpdecimal/
+      built into _internal\_decimal.pyd
+    - Microsoft Visual C++ runtime 14.51 (_internal\VCRUNTIME140.dll) -
+      Microsoft Distributable Code; see "Additional Conditions for this
+      Windows binary build" in licenses\CPython-3.13.17-LICENSE.txt
+
+Tcl/Tk 8.6.15
+  License : TCL (Tcl/Tk license, BSD style)
+            https://www.tcl-lang.org/software/tcltk/license.html
+  Texts   : licenses\Tk-8.6.15-license.terms; the Tcl and Tk texts are also
+            in licenses\CPython-3.13.17-LICENSE.txt
+  Source  : https://www.tcl-lang.org/
+  Bundled : _internal\tcl86t.dll, _internal\tk86t.dll, _internal\_tcl_data\,
+            _internal\_tk_data\, _internal\tcl8\ (used through _tkinter.pyd)
+
+
+Packaging
+---------
+
+PyInstaller 6.22.3 bootloader
+  License : GPL-2.0-or-later WITH Bootloader-exception
+            https://github.com/pyinstaller/pyinstaller/blob/v6.22.3/COPYING.txt
+  Texts   : licenses\pyinstaller-6.22.3-COPYING.txt (GPL-2.0 with the
+            bootloader exception, and Apache-2.0 for the run-time hooks)
+  Source  : https://github.com/pyinstaller/pyinstaller
+            https://pypi.org/project/pyinstaller/6.22.3/
+  Bundled : the start-up code of ExpoNametag.exe
+  Note    : The bootloader exception allows distributing the bootloader as
+            part of a combined executable without any restriction coming from
+            the GPL.
+  Also inside the .exe files, under Apache-2.0
+  (https://www.apache.org/licenses/LICENSE-2.0):
+    - PyInstaller 6.22.3 run-time hooks (pyi_rth_inspect, pyi_rth_pkgutil,
+      pyi_rth__tkinter)
+    - pyinstaller-hooks-contrib 2026.8 run-time hooks (pyi_rth_pywintypes,
+      pyi_rth_pythoncom)
+      https://github.com/pyinstaller/pyinstaller-hooks-contrib
+      Texts: licenses\pyinstaller-hooks-contrib-2026.8-LICENSE

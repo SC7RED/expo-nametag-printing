@@ -1,98 +1,79 @@
-# Engineering Expo Student Nametag Print Setup
+# Engineering Expo Student Nametag Printing
 
-## How To Use It
-> I'm sure you'll figure it out.
-> - Chen `23
+A small Windows app for the Engineering Expo check-in tables. A volunteer scans a student's
+Swapcard badge code (or types their VT PID), the app looks the student up, and a DYMO printer
+prints their name tag. There's also a manual mode for typing a student's details in by hand.
 
-## Pre-Requisites and Verification
+```
+laptop app  ──>  Cloudflare Worker  ──>  Swapcard (student data)
+    │            (holds the API key)
+    └──>  DYMO Label Software  ──>  DYMO LabelWriter 450 printer
+```
 
-Before you begin, make sure your system meets the following requirements and that you've downloaded and installed the necessary software. Each installation step is followed by verification instructions to ensure everything is working correctly.
+## Setting up a laptop (volunteers)
 
-### 1. Download and Install Visual Studio Code
-Visual Studio Code (VS Code) is a powerful code editor that you'll use to write and manage your Python scripts. Download and install it from [here](https://code.visualstudio.com/).
+You need two files from the IT chair: `ExpoNametagSetup.exe` and `ExpoNametag.env`.
 
-**Installation Steps:**
-  1. Visit the [Visual Studio Code download page](https://code.visualstudio.com/).
-  2. Select your operating system (Windows, macOS, or Linux).
-  3. Follow the installation prompts.
+1. Put both files in the **same folder** on the laptop itself (Desktop, Downloads or a USB stick;
+   not a network drive or an online-only OneDrive folder).
+2. Double-click `ExpoNametagSetup.exe` and click **Yes** when Windows asks. Nothing else appears.
+   It installs DYMO Label Software and the app; this takes a few minutes.
+3. Plug in the printer and open **Expo Nametag Printing** from the desktop.
 
-### 2. Download and Install Git
-Git is a version control system that allows you to manage and keep track of your code changes. It’s essential for pulling the latest updates of the nametag printing script.
+To remove everything afterwards: **Settings → Apps → Expo Nametag Printing → Uninstall**.
 
-**Installation Steps:**
-  1. Visit the [Git download page](https://git-scm.com/downloads).
-  2. Select your operating system and download the installer.
-  3. Follow the on-screen instructions to install Git.
-  4. After installation, open a terminal or command prompt and type `git --version` to verify the installation.
+Supported printers: the DYMO **LabelWriter 450** family (450, 450 Turbo). The 550 family does
+not work with DYMO Label Software 8, and the 450 Duo has Windows 11 driver problems.
 
-### 3. Download and Install Python
-Python is the programming language in which the nametag printing script is written. Ensure you download version 3.x.x, as it includes the necessary libraries and modules.
+## Each year (IT chair)
 
-**Installation Steps:**
-  1. Visit the [Python download page](https://www.python.org/downloads/).
-  2. Select the latest Python 3.x.x version for your operating system.
-  3. During installation, make sure to check the box that says "Add Python to PATH."
-  4. Verify the installation by opening a terminal or command prompt and typing `py --version`
-  5. Additionally, verify that `pip`, Python’s package installer, is working by running: `pip --version`
+1. Update the lookup service and make a new `ExpoNametag.env`: see [proxy/README.md](proxy/README.md).
+2. Change `CURRENT_YEAR` in [src/config.py](src/config.py) (it's in the window title).
+3. Build a new installer (below) and hand out `dist\ExpoNametagSetup.exe` with the `.env` file.
 
-### 4. Install the DYMO SDK
-The DYMO Software Development Kit (SDK) is required to communicate with the DYMO label printer from your Python script. 
+The Cloudflare account belongs to the shared IT committee email, so passing that login to
+the next chair is the whole handover.
 
-**Installation Steps:**
-  1. Download the SDK from [this link](https://www.dymo.com/support?cfid=online-support-sdk).
-  2. Follow the installation instructions provided on the website.
-  3. Make sure the SDK is properly installed and configured to work with your system.
+## Building the installer
 
-### 5. Install the DYMO Label Software
-The DYMO Label Software allows you to design and print labels. It also contains the drivers required for the DYMO label printer to function properly.
+One-time setup on a Windows PC (no admin needed):
+- Python 3.13, **32-bit** (DYMO's software is 32-bit): `py install 3.13-32`
+- .NET SDK 8 or later: `winget install Microsoft.DotNet.SDK.10`
 
-**Installation Steps:**
-  1. Download the DYMO Label Software from [this link](https://download.dymo.com/dymo/Software/Win/DLS8Setup8.7.4.exe).
-  2. Run the installer and follow the on-screen prompts to complete the installation.
-  3. After installation, verify that the software can detect your DYMO label printer.
+Then, from the repo folder:
 
-### 6. Install Python Dependencies
-To ensure your Python environment is set up with all necessary dependencies, install the required Python packages.
+```powershell
+.\installer\build-app.ps1 -Clean     # the app, as dist\ExpoNametag\ (no Python needed on laptops)
+.\installer\build-installer.ps1      # dist\ExpoNametag.msi and dist\ExpoNametagSetup.exe
+```
 
-**Installation Steps:**
-  1. Open a terminal or command prompt in the directory containing the `requirements.txt` file.
-  2. Run the following command: `pip install -r requirements.txt`
+## Running from source (developers)
 
-## Verify Setup Using a Python Script
+```powershell
+py -V:3.13-32 -m pip install -r requirements.txt
+copy env.example .env                # then fill it in
+py -V:3.13-32 src\main.py
+```
 
-You can use the following Python script to automate the verification of your setup by opening a terminal or command prompt in the root project directory and executing:
-   ```bash
-   py verify_setup.py
-   ```
+Tests (no packages or printer needed): `python -m unittest discover -s tests -v`
 
-Alternatively, to just verify the DYMO configuration, complete the following steps: 
-  1. Connect your DYMO printer to your computer.
-  2. Open a terminal or command prompt.
-  3. Run the following Python commands:
+## What's where
 
-  ```python
-  py
-  >>> import win32com.client
-  >>> dymo = win32com.client.Dispatch("Dymo.DymoAddIn")
-  >>> print(dymo)
-  ```
+| Path | What it is |
+|---|---|
+| [src/main.py](src/main.py) | The app: window, lookups, printing |
+| [src/config.py](src/config.py), [src/query.py](src/query.py) | Settings and the calls to the lookup service |
+| [src/label/student_badge_v3.label](src/label/student_badge_v3.label) | The badge design |
+| [proxy/](proxy/) | The Cloudflare Worker that holds the Swapcard key |
+| [installer/](installer/) | Build scripts, the WiX installer and the PyInstaller spec |
+| [tests/](tests/) | Automated tests (fake network, printer and window) |
+| [tools/test-vm/](tools/test-vm/) | Scripts for a Windows 11 test VM |
+| [.github/workflows/installer.yml](.github/workflows/installer.yml) | Builds and test-installs on every push |
 
-  - **Expected Output:**  
-    If the SDK is installed correctly, you should not receive any import errors, and the `print(dymo)` command should return a COM object reference.
+## Known limits
 
-
-
-
-
-## Feature Demoed
-- [x] Scan event registration ID and submit query an event participant on SwapCard API
-
-- [x] Accept VT PID or email and query an event participant on SwapCard API
-
-- [x] Backup input that organizes a customized event participant record
-
-- [x] Manual overwrite grade level setting for an event participant
-
-- [x] Dynamically log an event participant record to machine specfied Google worksheet
-
-- [x] Dynamically merge all records to a master sheet sorted by record timestamp
+- The installer isn't code-signed, so a downloaded copy shows a SmartScreen warning
+  ("More info → Run anyway"), and laptops with Smart App Control turned on block it.
+  Copying it from a USB stick avoids the SmartScreen warning.
+- Hokie Passport scans can't look anyone up (that data source was removed in 2024); use the
+  Swapcard badge code or VT PID instead.

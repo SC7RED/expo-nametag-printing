@@ -1,3 +1,19 @@
+import os
+import sys
+
+from dotenv import load_dotenv
+
+# APP_DIR is the install folder (where .env lives). RESOURCE_DIR is where bundled
+# data such as the label file lives (PyInstaller's _MEIPASS folder when frozen).
+# Running from source, both are the repo root.
+if getattr(sys, "frozen", False):
+    APP_DIR = os.path.dirname(sys.executable)
+    RESOURCE_DIR = getattr(sys, "_MEIPASS", APP_DIR)
+else:
+    APP_DIR = RESOURCE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENV_PATH = os.path.join(APP_DIR, ".env")
+LABEL_PATH = os.path.join(RESOURCE_DIR, "src", "label", "student_badge_v3.label")
+
 class GeneralConfig:
 
     CURRENT_YEAR = 2026
@@ -8,19 +24,17 @@ class GeneralConfig:
     NODE = "nodes"
     FIRST_NAME = "firstName"
     LAST_NAME = "lastName"
-    EMAIL = "email"
-    PHONE_NUMBER = "phoneNumbers"
     DEFINITION = "definition"
     TRANSLATION = "translations"
 
 class NameTagConfig:
 
     years = [
-        "Freshman", 
-        "Sophomore", 
-        "Junior", 
-        "Senior", 
-        "Masters", 
+        "Freshman",
+        "Sophomore",
+        "Junior",
+        "Senior",
+        "Masters",
         "Doctorate"
         ]
 
@@ -44,7 +58,7 @@ class NameTagConfig:
         "Ocean Engineering",
         "Non-Engineering"
         ]
-    
+
     major_index = {
         "AE": 0,
         "BSE": 1,
@@ -62,289 +76,25 @@ class NameTagConfig:
         "MSE": 13,
         "ME": 14,
         "OE": 15,
-        "NON": 16 
+        "NON": 16
     }
 
-import os
-from dotenv import load_dotenv
-load_dotenv()
+# A bad .env must not stop the window from opening. Only the error type is printed,
+# so nothing from the file ends up on screen.
+try:
+    load_dotenv(ENV_PATH)
+except (OSError, UnicodeDecodeError) as err:
+    print("Warning - Could not read .env:", type(err).__name__)
 
-class QueryConfig: 
+class QueryConfig:
 
-    event_id =  os.getenv('SWAPCARD_EVENT_ID')
-    url = 'https://developer.swapcard.com/event-admin/graphql'
+    # Lookups go to our Cloudflare Worker (see proxy/README.md), which holds the real
+    # Swapcard API key and event ID. PROXY_TOKEN is the Worker's laptop token, not the Swapcard key.
+    url = os.getenv('PROXY_URL')
     headers = {
-        'Authorization': os.getenv('SWAPCARD_API_KEY'),
+        'Authorization': os.getenv('PROXY_TOKEN'),
         'Accept': 'application/json'
     }
-
-    event_query = '''
-        query EventById($eventId: ID!) {
-            event(id: $eventId) {
-                id
-                slug
-                title
-                beginsAt
-                endsAt
-                createdAt
-                htmlDescription
-                banner {
-                    imageUrl
-                }
-                address {
-                    place
-                    street
-                    city
-                    zipCode
-                    state
-                    country
-                }
-                isLive
-                updatedAt
-                language
-                timezone
-                totalPlannings
-                totalExhibitors
-                totalSpeakers
-                groups {
-                    id
-                    name
-                    peopleCount
-                }
-            }
-        }
-    '''
-    people_search_query= '''
-        query eventPerson($eventId: ID!, $search: String!) {
-            eventPerson(eventId: $eventId, search: $search) {
-                nodes {
-                id
-                userId
-                email
-                firstName
-                lastName
-                phoneNumbers {
-                    number
-                }
-                jobTitle
-                photoUrl
-                organization
-                websiteUrl
-                biography
-                groups {
-                    name
-                }
-                withEvent(eventId: $eventId) {
-                    fields {
-                        ... on MultipleSelectField {
-                            translations {
-                                value
-                            }
-                            definition {
-                                translations {
-                                    name
-                                }
-                            }
-                        }
-                        ... on SelectField {
-                            translations {
-                                value
-                            }
-                            definition {
-                                translations {
-                                    name
-                                }
-                            }
-                        }
-                        ... on TextField {
-                            value
-                            definition {
-                                translations {
-                                    name
-                                }
-                            }
-                        }
-                        ... on NumberField {
-                            studentID: value
-                            definition {
-                                translations {
-                                    name
-                                }
-                            }
-                        }
-                    }
-                    badges {
-                        ... on BadgeBarcode {
-                            barcode
-                        }
-                    }
-                }
-                isVisible
-                source
-                createdAt
-                updatedAt
-                type
-                engagementScore
-                }
-            }
-        }
-    '''
-    people_filter_query= '''
-        query eventPerson($eventId: ID!, $filters: [EventPersonFilter!]) {
-            eventPerson(eventId: $eventId, filters: $filters) {
-                nodes {
-                id
-                userId
-                email
-                firstName
-                lastName
-                phoneNumbers {
-                    number
-                }
-                jobTitle
-                photoUrl
-                organization
-                websiteUrl
-                biography
-                groups {
-                    name
-                }
-                withEvent(eventId: $eventId) {
-                    fields {
-                        ... on MultipleSelectField {
-                            translations {
-                                value
-                            }
-                            definition {
-                                id
-                                translations {
-                                    name
-                                }
-                            }
-                        }
-                        ... on SelectField {
-                            translations {
-                                value
-                            }
-                            definition {
-                                id
-                                translations {
-                                    name
-                                }
-                            }
-                        }
-                        ... on TextField {
-                            value
-                            definition {
-                                id
-                                translations {
-                                    name
-                                }
-                            }
-                        }
-                        ... on NumberField {
-                            studentID: value
-                            definition {
-                                id
-                                translations {
-                                    name
-                                }
-                            }
-                        }
-                    }
-                    badges {
-                        ... on BadgeBarcode {
-                            barcode
-                        }
-                    }
-                }
-                isVisible
-                source
-                createdAt
-                updatedAt
-                type
-                engagementScore
-                }
-            }
-        }
-    '''
-
-    mass_people_query= '''
-        query eventPerson($eventId: ID!, $cursor: CursorPaginationInput) {
-            eventPerson(eventId: $eventId, cursor: $cursor) {
-                pageInfo {
-                    hasNextPage
-                    endCursor
-                    totalItems
-                    startCursor
-                    lastPage
-                    hasPreviousPage
-                    currentPage
-                }
-                totalCount
-                nodes {
-                    firstName
-                    lastName
-                    email
-                    phoneNumbers {
-                        number
-                    }
-                    withEvent(eventId: $eventId) {
-                        fields {
-                            ... on MultipleSelectField {
-                                translations {
-                                    value
-                                }
-                                definition {
-                                    translations {
-                                        name
-                                    }
-                                }
-                            }
-                            ... on SelectField {
-                                translations {
-                                    value
-                                }
-                                definition {
-                                    translations {
-                                        name
-                                    }
-                                }
-                            }
-                            ... on TextField {
-                                value
-                                definition {
-                                    translations {
-                                        name
-                                    }
-                                }
-                            }
-                            ... on NumberField {
-                                studentID: value
-                                definition {
-                                    translations {
-                                        name
-                                    }
-                                }
-                            }
-                        }
-                        badges {
-                            ... on BadgeBarcode {
-                                barcode
-                            }
-                        }
-                    }
-                    groups {
-                        id
-                        name
-                    }
-                    source
-                    updatedAt
-                    createdAt
-                }
-            }
-        }
-    '''
 
 class EXPOEventNotFoundError(Exception):
 

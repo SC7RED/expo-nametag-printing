@@ -4,16 +4,13 @@ from config import QueryConfig, EXPOEventNotFoundError
 URL = QueryConfig.url
 headers = QueryConfig.headers
 
-def event_query(event_id):
+# Both lookups go to the Cloudflare Worker (proxy/worker.js). It builds the Swapcard
+# query itself and answers in Swapcard's JSON format, so main.py reads it unchanged.
 
-    # Define your GraphQL query
-    query = QueryConfig.event_query
-    variables = {
-        "eventId": event_id
-    }
+def event_query():
 
     response = requests.post(url=URL, headers=headers,
-                             json={'query': query, 'variables': variables}, timeout=5)
+                             json={'lookup': 'event'}, timeout=5)
 
     # Check if the request was successful
     if not response.status_code == 200:
@@ -23,58 +20,11 @@ def event_query(event_id):
     return response
 
 
-def people_search_query(event_id, search):
-
-    # Define your GraphQL query
-    query = QueryConfig.people_search_query
-    variables = {
-        'eventId': event_id,
-        'search': search
-    }
+def people_filter_query(filters):
 
     response = requests.post(url=URL, headers=headers,
-                             json={'query': query, 'variables': variables}, timeout=5)
+                             json={'lookup': 'person', 'filters': filters}, timeout=5)
 
-    # Check if the request was successful
-    if not response.status_code == 200:
-        # Print the error message if the request failed
-        print('Request failed with status code:', response.status_code)
-        print('Error message:', response.text)
-
-    return response
-
-def people_filter_query(event_id, filters):
-
-    # Define your GraphQL query
-    query = QueryConfig.people_filter_query
-    variables = {
-        'eventId': event_id,
-        'filters': filters
-    }
-
-    response = requests.post(url=URL, headers=headers, 
-                             json={'query': query, 'variables': variables}, timeout=5)
-
-    # Check if the request was successful
-    if not response.status_code == 200:
-        # Print the error message if the request failed
-        print('Request failed with status code:', response.status_code)
-        print('Error message:', response.text)
-
-    return response
-
-def backup_database_query(event_id, cursor):
-
-    # Define your GraphQL query
-    query = QueryConfig.mass_people_query
-    variables = {
-        'eventId': event_id,
-        'cursor': cursor
-    }
-
-    response = requests.post(url=URL, headers=headers,
-                             json={'query': query, 'variables': variables}, timeout=50)
-    
     # Check if the request was successful
     if not response.status_code == 200:
         # Print the error message if the request failed

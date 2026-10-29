@@ -1,0 +1,8 @@
+<Project>
+  <!-- Keep bin\ and obj\ out of the source tree: everything goes under <repo>\build\wix. -->
+  <PropertyGroup>
+    <WixBuildRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\build\wix'))\</WixBuildRoot>
+    <BaseIntermediateOutputPath>$(WixBuildRoot)$(MSBuildProjectName)\obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(WixBuildRoot)$(MSBuildProjectName)\bin\</BaseOutputPath>
+  </PropertyGroup>
+</Project>

@@ -1,18 +1,14 @@
 from datetime import datetime
-import pathlib
 import time
-import warnings
 
 #import gspread
-import PySimpleGUI as sg
+import FreeSimpleGUI as sg
 from win32com.client import Dispatch
 
-import query
-from config import GeneralConfig, NameTagConfig, QueryConfig
+import query  # imports config first, which loads .env
+from config import GeneralConfig, NameTagConfig, LABEL_PATH
 
 import os
-from dotenv import load_dotenv
-load_dotenv()
 
 
 # Globals
@@ -21,12 +17,9 @@ EVENT_PERSON = GeneralConfig.EVENT_PERSON
 NODE = GeneralConfig.NODE
 FIRST_NAME = GeneralConfig.FIRST_NAME
 LAST_NAME = GeneralConfig.LAST_NAME
-EMAIL = GeneralConfig.EMAIL
-PHONE_NUMBER = GeneralConfig.PHONE_NUMBER
 DEFINITION = GeneralConfig.DEFINITION
 TRANSLATION = GeneralConfig.TRANSLATION
 
-EVENT_ID = QueryConfig.event_id
 MAJOR_ID = os.getenv('SWAPCARD_MAJOR_ID')
 YEAR_ID = os.getenv('SWAPCARD_YEAR_ID')
 DEFAULT_FONT = ("Calibri", 22)
@@ -34,8 +27,11 @@ INPUT_FONT = ("Courier", 20)
 TEXT_SIZE = (15, 1)
 
 # verify event
-event = query.event_query(EVENT_ID).json()
-print(event)
+try:
+    event = query.event_query().json()
+    print(event)
+except Exception as err:
+    print("Warning - Could not verify event with Swapcard:", err)
 
 # set up simple GUI
 sg.theme("SystemDefaultForReal")
@@ -52,13 +48,15 @@ def _printer_set_up():
         print ("After Dispatch")
         printers_string = dymo_printer.GetDymoPrinters()
         print(printers_string)
-        if printers_string:
-            printer_list = printers_string.split('|')
-            dymo_printer.SelectPrinter(printer_list[0])
+        if not printers_string:
+            raise RuntimeError("no DYMO printers found")
+        printer_list = printers_string.split('|')
+        dymo_printer.SelectPrinter(printer_list[0])
         print("Selected:" + printer_list[0])
 
-        label_path = pathlib.Path("./src/label/student_badge_v3.label")
-        dymo_printer.Open(label_path)
+        # Only an explicit False is a failure; late-bound COM calls can return None on success
+        if dymo_printer.Open(LABEL_PATH) is False:
+            raise RuntimeError("could not open label file: " + LABEL_PATH)
         dymo_label = Dispatch("Dymo.DymoLabels")
 
     except Exception as dymo_err:
@@ -109,12 +107,12 @@ timePrev = 0
 while True:
     event, inputs = window.read()
 
+    if event in (sg.WIN_CLOSED, 'Exit'):
+        break
+
     # Beacuse the scanner scans so fast, we need to add a delay so that the scanner doesnt print multiple of the same nametag.
     if time.time() - timePrev >= 3:
         timePrev = time.time()
-        
-        if event in (sg.WIN_CLOSED, 'Exit'):
-            break
 
         first_name, last_name, major, year, regis_id = '', '', '', '', ''
 
@@ -122,92 +120,78 @@ while True:
         
         # Parse information from SwapCard API queries
         if not inputs["manual_input"] and not is_student_id:
-            # Option 1 - Search by registration ID
-            if not inputs['BRID'] == '':
-                people_filter = {'qrCodes': inputs['BRID']}
-                person = query.people_filter_query(EVENT_ID, people_filter)
-                print(person.json())
+            try:
+                # Option 1 - Search by registration ID
+                if not inputs['BRID'] == '':
+                    people_filter = {'qrCodes': inputs['BRID']}
+                    person = query.people_filter_query(people_filter)
+                    print(person.json())
 
-                if person.json()[DATA][EVENT_PERSON][NODE] == []:
-                    print("Warning - Invaild registration ID. EventPerson can not be resolved.")
+                    if person.json()[DATA][EVENT_PERSON][NODE] == []:
+                        print("Warning - Invaild registration ID. EventPerson can not be resolved.")
+                        continue
+
+                # Option 2 - Search by PID or VT email
+                elif not inputs['PID'] == '':
+                    pid = inputs['PID'] if '@' in inputs['PID'] else inputs['PID'] + '@vt.edu'
+                    people_filter = {'emails': pid}
+                    person = query.people_filter_query(people_filter)
+                    print(person.json())
+
+                    if person.json()[DATA][EVENT_PERSON][NODE] == []:
+                        print("Warning - Invaild PID/VT email. EventPerson can not be resolved.")
+                        continue
+
+                else:
+                    print("Warning - No Input Detected (Content API Query)")
                     continue
 
-            # Option 2 - Search by PID or VT email
-            elif not inputs['PID'] == '':
-                pid = inputs['PID'] if '@' in inputs['PID'] else inputs['PID'] + '@vt.edu'
-                people_filter = {'emails': pid}
-                person = query.people_filter_query(EVENT_ID, people_filter)
-                print(person.json())
+                eventPerson = person.json()[DATA][EVENT_PERSON][NODE][0]
+                # assign from the query result
+                first_name = eventPerson[FIRST_NAME]
+                last_name = eventPerson[LAST_NAME]
 
-                if person.json()[DATA][EVENT_PERSON][NODE] == []:
-                    print("Warning - Invaild PID/VT email. EventPerson can not be resolved.")
-                    continue
+                # Fetch major & year from fields - only the first major is recorded
+                fields = eventPerson['withEvent']['fields']
+                # first_major_flag = True
+                for field in fields:
+                    # if first_major_flag and DEFINITION in field and field[DEFINITION][TRANSLATION][0]['name'] == 'Major':
+                    if (DEFINITION in field and field[DEFINITION]['id'] ==  MAJOR_ID):
+                        # MultipleSelectField query structure
+                        major = field[TRANSLATION][0]['value']
 
-            else:
-                print("Warning - No Input Detected (Content API Query)")
+                    # if DEFINITION in field and field[DEFINITION][TRANSLATION][0]['name'] == 'School Year':
+                    if (DEFINITION in field and field[DEFINITION]['id'] == YEAR_ID):
+
+                        # SelectField query structure
+                        year = field[TRANSLATION][0]['value']
+
+                    # if not inputs["OWGLConfirm"] and DEFINITION in field and field[DEFINITION][TRANSLATION][0]['name'] == 'Graduation Year':
+                    #     # SelectField query structure
+                    #     graduation_time = field[TRANSLATION][0]['value']
+                    #     if not graduation_time == "None" or not graduation_time == "Other":
+                    #         graduation_year = int(graduation_time[-4:])
+                    #         if "Spring" in graduation_time:
+                    #             graduation_year -= 1
+                    #         year = NameTagConfig.years[3 + GeneralConfig.CURRENT_YEAR - graduation_year]
+
+                    #     else: year = graduation_time
+
+                badges = eventPerson['withEvent']['badges']
+                regis_id = badges[0]['barcode']
+
+                # a Freshman with no major is fine: the special cases below print General Engineering
+                if year is None or (major is None and "freshman" not in year.lower()):
+                    raise ValueError("student record has no major or year")
+
+            except Exception as err:
+                print("Warning - Swapcard lookup failed:", type(err).__name__, err)
                 continue
 
-            eventPerson = person.json()[DATA][EVENT_PERSON][NODE][0]
-            # assign from the query result
-            first_name = eventPerson[FIRST_NAME]
-            last_name = eventPerson[LAST_NAME]
-            email = eventPerson[EMAIL]
-            if not eventPerson[PHONE_NUMBER] == []:
-                phone_number = eventPerson[PHONE_NUMBER][0]["number"]
-
-            # Fetch major & year from fields - only the first major is recorded
-            fields = eventPerson['withEvent']['fields']
-            # first_major_flag = True
-            for field in fields:
-                # if first_major_flag and DEFINITION in field and field[DEFINITION][TRANSLATION][0]['name'] == 'Major':
-                if (DEFINITION in field and field[DEFINITION]['id'] ==  MAJOR_ID):
-                    # MultipleSelectField query structure
-                    major = field[TRANSLATION][0]['value']
-                    first_major_flag = False
-
-                # if DEFINITION in field and field[DEFINITION][TRANSLATION][0]['name'] == 'School Year':
-                if (DEFINITION in field and field[DEFINITION]['id'] == YEAR_ID):
-
-                    # SelectField query structure
-                    year = field[TRANSLATION][0]['value']
-
-                # if not inputs["OWGLConfirm"] and DEFINITION in field and field[DEFINITION][TRANSLATION][0]['name'] == 'Graduation Year':
-                #     # SelectField query structure
-                #     graduation_time = field[TRANSLATION][0]['value']
-                #     if not graduation_time == "None" or not graduation_time == "Other":
-                #         graduation_year = int(graduation_time[-4:])
-                #         if "Spring" in graduation_time:
-                #             graduation_year -= 1
-                #         year = NameTagConfig.years[3 + GeneralConfig.CURRENT_YEAR - graduation_year]
-
-                #     else: year = graduation_time
-
-            badges = eventPerson['withEvent']['badges']
-            regis_id = badges[0]['barcode']
-
-        # Parse from querying the backup database
+        # Hokie Passport scan - its backup database lookup was removed
         elif is_student_id:
-            # Option 1 - Search by registration ID or Student ID
-            if not inputs['BRID'] == '':
-                #people_record = {THIS IS WHERE I QUERY BY HOKIE P}
-                if people_record is not None:
-                    people_row = people_record.row
-                else:
-                    print("Warning - Invaild registration ID. EventPerson can not be resolved in Backup Database.")
-                    continue
-
-            #elif not inputs['PID'] == '':
-            #    pid = inputs['PID'] if '@' in inputs['PID'] else inputs['PID'] + '@vt.edu'
-            #    #people_record = backup_db_sheet.find(pid)
-            #    if people_record is not None:
-            #        people_row = people_record.row
-            #    else:
-            #        print("Warning - Invaild PID/VT email. EventPerson can not be resolved in Backup Database.")
-            #        continue
-
-            # else:
-            #     print("Warning - No Input Detected (Backup Database Query)")
-            #     continue
+            print("Warning - Hokie Passport lookup is not available. Use the Swapcard badge code or VT PID.")
+            continue
 
         # Parse directly from manual inputs
         else:
@@ -260,7 +244,10 @@ while True:
                 print("\nPrint Success\n")
 
             except Exception as err:
-                printer.EndPrintJob()
+                try:
+                    printer.EndPrintJob()
+                except Exception as end_err:
+                    print("Warning - Could not end print job:", end_err)
                 print("\nPrinting Not Resolved - ", err, "\n")
 
         # Index increment
@@ -268,5 +255,8 @@ while True:
 
 #work_sheet.update('A' + str(row_insert), GeneralConfig.GOOGLE_LOG_END_TOKEN)
 if printer is not None:
-    printer.EndPrintJob()
+    try:
+        printer.EndPrintJob()
+    except Exception as end_err:
+        print("Warning - Could not end print job:", end_err)
 window.close()

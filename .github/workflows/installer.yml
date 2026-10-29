@@ -1,0 +1,107 @@
+# Builds the app, the MSI and the Setup bundle on a clean Windows runner, then checks that
+# they install and uninstall silently. This repository is public: no secrets are used, and the
+# key files and blobs the tests install hold dummy values; the key files are never uploaded.
+name: Installer
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer:
+    name: Build and silent install test
+    # Windows Server 2025. The runner account is an administrator with UAC off, so the
+    # per-machine installs need no prompt.
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        # Windows PowerShell 5.1, which the installer scripts target. Each script call is the
+        # last line of its step, so its exit code becomes the step's result.
+        shell: powershell
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.13 32-bit
+        id: py
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+          architecture: x86
+
+      - name: Unit tests
+        env:
+          PYTHON: ${{ steps.py.outputs.python-path }}
+        run: |
+          & $env:PYTHON -m unittest discover -s tests -v
+
+      - name: Build the app (PyInstaller)
+        env:
+          PYTHON: ${{ steps.py.outputs.python-path }}
+        run: .\installer\build-app.ps1 -Clean -PythonExe $env:PYTHON
+
+      # The image has the .NET SDK, and build-installer.ps1 installs WiX itself: from a repo-local
+      # tool manifest (.config\dotnet-tools.json) via 'dotnet tool restore' if there is one,
+      # otherwise as a global tool (the image puts %USERPROFILE%\.dotnet\tools on PATH, and the
+      # script runs wix.exe by full path anyway). Either way no extra step is needed here.
+      - name: Build the MSI and the Setup bundle (WiX)
+        run: .\installer\build-installer.ps1
+
+      - name: MSI install and uninstall without .env
+        run: .\installer\ci\Test-Install.ps1 -Mode Msi
+
+      - name: MSI install and uninstall with a dummy .env
+        run: .\installer\ci\Test-Install.ps1 -Mode MsiWithEnv
+
+      # Allowed to fail: DYMO's installer may not work on Windows Server, and it downloads 171 MB.
+      - name: Setup bundle with DYMO, install and uninstall
+        continue-on-error: true
+        timeout-minutes: 25
+        run: .\installer\ci\Test-Install.ps1 -Mode Bundle
+
+      - name: Collect installers and logs
+        if: always()
+        run: |
+          # Best effort: a log still locked by a timed-out installer is skipped with a warning.
+          $ErrorActionPreference = 'Continue'
+          $stage = Join-Path $env:RUNNER_TEMP 'artifact'
+          $logs = Join-Path $stage 'logs'
+          $null = New-Item -ItemType Directory -Force -Path $logs
+          foreach ($file in 'dist\ExpoNametag.msi', 'dist\ExpoNametagSetup.exe') {
+            if (Test-Path -LiteralPath $file) { Copy-Item -LiteralPath $file -Destination $stage }
+          }
+          # Only .log files: the dummy key files live in other temp folders and are deleted after each test.
+          $installLogs = Join-Path $env:RUNNER_TEMP 'install-logs'
+          if (Test-Path -LiteralPath $installLogs) {
+            Get-ChildItem -LiteralPath $installLogs -Filter '*.log' -File | Copy-Item -Destination $logs
+          }
+          # Logs the bundle may write to %TEMP% besides the one named by /log.
+          Get-ChildItem -Path $env:TEMP -Filter '*.log' -File |
+            Where-Object { $_.Name -like '*ExpoNametag*' -or $_.Name -like '*Expo_Nametag*' } |
+            Copy-Item -Destination $logs
+          # Never upload a key file (.env, ExpoNametag.env), not even a dummy one.
+          Get-ChildItem -LiteralPath $stage -Recurse -Force -File | Where-Object { $_.Name -like '*.env' } |
+            ForEach-Object { Write-Warning "Not uploading $($_.FullName)"; Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop }
+          Get-ChildItem -LiteralPath $stage -Recurse -File |
+            ForEach-Object { '{0,14:N0}  {1}' -f $_.Length, $_.FullName.Substring($stage.Length + 1) }
+
+      - name: Upload installers and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: installer-and-logs-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/artifact/
+          include-hidden-files: false   # the default; also keeps out any file named .env
+          if-no-files-found: warn
+          retention-days: 7

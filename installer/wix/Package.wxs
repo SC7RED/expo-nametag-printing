@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The app MSI, built by installer\build-installer.ps1:
+    wix build Package.wxs -arch x86 -d AppDir=<dist\ExpoNametag> -d Version=1.0.0
+  Silent on its own (msiexec /i ExpoNametag.msi /qn); ExpoNametagSetup.exe (Bundle.wxs) chains it after DYMO.
+-->
+<?ifndef Version?>
+<?define Version = 1.0.0?>
+<?endif?>
+<?ifndef AppDir?>
+<?error Pass -d AppDir=<path to dist\ExpoNametag>?>
+<?endif?>
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Expo Nametag Printing"
+           Manufacturer="SEC at VT"
+           Version="$(var.Version)"
+           UpgradeCode="{21F16908-D50E-4C5C-93FF-C89311B843F3}"
+           Language="1033"
+           Scope="perMachine">
+
+    <!-- Same-version upgrades too, so a rebuilt installer replaces the old one instead of installing beside it. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- x86 package, so this is Program Files (x86). -->
+    <StandardDirectory Id="ProgramFilesFolder">
+      <Directory Id="INSTALLFOLDER" Name="Expo Nametag Printing" />
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Expo Nametag Printing">
+      <!-- Everything PyInstaller produced, except the exe authored below and any settings files. -->
+      <Files Directory="INSTALLFOLDER" Include="$(var.AppDir)\**">
+        <Exclude Files="$(var.AppDir)\ExpoNametag.exe" />
+        <Exclude Files="$(var.AppDir)\**\*.env" />
+      </Files>
+
+      <!--
+        Non-advertised shortcuts in a per-machine package (All Users Start menu and Public desktop).
+        ICE43 and ICE57 flag them as per-user data anyway; they're false positives here, and
+        build-installer.ps1 suppresses just those two when it validates.
+      -->
+      <Component Id="ExpoNametagExe" Directory="INSTALLFOLDER">
+        <File Id="ExpoNametagExe" Source="$(var.AppDir)\ExpoNametag.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Expo Nametag Printing"
+                    WorkingDirectory="INSTALLFOLDER" Advertise="no" />
+          <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="Expo Nametag Printing"
+                    WorkingDirectory="INSTALLFOLDER" Advertise="no" />
+        </File>
+
+        <!--
+          The app reads its settings from .env next to ExpoNametag.exe. ENVSOURCEDIR is the folder
+          holding ExpoNametag.env (see env.example); ExpoNametagSetup.exe passes its own folder.
+          Not set, or no file there, means nothing is copied. It's deliberately not a Secure
+          property: Windows Installer then takes it only from an admin install, not from a
+          standard user's repair, so nobody can make the installer copy some other file.
+        -->
+        <CopyFile Id="CopyEnv" SourceProperty="ENVSOURCEDIR" SourceName="ExpoNametag.env"
+                  DestinationDirectory="INSTALLFOLDER" DestinationName=".env" />
+        <!-- Windows Installer doesn't track copied files, so remove .env explicitly on uninstall. -->
+        <RemoveFile Id="RemoveEnv" Name=".env" On="uninstall" />
+      </Component>
+    </Feature>
+  </Package>
+</Wix>
