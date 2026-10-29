@@ -16,8 +16,9 @@ You need two files from the IT chair: `ExpoNametagSetup.exe` and `ExpoNametag.en
 
 1. Put both files in the **same folder** on the laptop itself (Desktop, Downloads or a USB stick;
    not a network drive or an online-only OneDrive folder).
-2. Double-click `ExpoNametagSetup.exe` and click **Yes** when Windows asks. Nothing else appears.
-   It installs DYMO Label Software and the app; this takes a few minutes.
+2. Double-click `ExpoNametagSetup.exe` and click **Yes** when Windows asks. A small window shows
+   what it's doing (DYMO Label Software, then the app) and closes itself when it's done, after a
+   few minutes. There's nothing to click in it.
 3. Plug in the printer and open **Expo Nametag Printing** from the desktop.
 
 To remove everything afterwards: **Settings → Apps → Expo Nametag Printing → Uninstall**.

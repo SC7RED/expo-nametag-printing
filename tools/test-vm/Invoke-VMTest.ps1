@@ -86,12 +86,22 @@ $dymoCom = Test-Path 'Registry::HKEY_CLASSES_ROOT\Dymo.DymoAddIn\CLSID'
     $script:failures += @($out | Where-Object { $_ -like 'FAIL*' }).Count
 }
 
+# Right after a power-off, VirtualBox can keep the VM locked for a few seconds, so this retries.
+function Invoke-VBoxWhenUnlocked([string[]]$Arguments) {
+    foreach ($try in 1..10) {
+        Invoke-VBox -Arguments $Arguments -AllowFailure | Out-Null
+        if ($LASTEXITCODE -eq 0) { return }
+        Start-Sleep -Seconds 3
+    }
+    throw "VBoxManage $($Arguments -join ' ') kept failing."
+}
+
 function Copy-GuestLogs([string]$Into) {
     New-Item -ItemType Directory -Force -Path $Into | Out-Null
     $logs = Invoke-GuestPowerShell -VM $VMName -PasswordFile $pw -Script "Get-ChildItem '$guestDir' -Filter *.log | ForEach-Object FullName"
     foreach ($log in @($logs | Where-Object { $_ -like '*.log' })) {
         Invoke-VBox -Arguments @('guestcontrol', $VMName, 'copyfrom', '--username=Administrator', "--passwordfile=$pw",
-                                 "--target-directory=$Into", $log) | Out-Null
+                                 "--target-directory=$Into\", $log) | Out-Null
     }
     Write-Host "Logs copied to $Into"
 }
@@ -103,19 +113,20 @@ try {
     Write-Host '== Restoring the "clean" snapshot'
     if ((Get-VMState $VMName) -notin 'poweroff', 'aborted', 'saved') {
         Invoke-VBox -Arguments @('controlvm', $VMName, 'poweroff') -AllowFailure | Out-Null
-        Wait-VMState $VMName @('poweroff', 'aborted') 2
+        [void](Wait-VMState $VMName @('poweroff', 'aborted') 2)
     }
-    Invoke-VBox -Arguments @('snapshot', $VMName, 'restore', 'clean') | Out-Null
+    Invoke-VBoxWhenUnlocked @('snapshot', $VMName, 'restore', 'clean')
     if ($AttachPrinter) {
         # DYMO's USB vendor ID is 0922. While the VM runs, the printer belongs to the VM, not this PC.
-        Invoke-VBox -Arguments @('usbfilter', 'add', '0', '--target', $VMName, '--name', 'DYMO', '--vendorid', '0922') | Out-Null
+        Invoke-VBoxWhenUnlocked @('usbfilter', 'add', '0', '--target', $VMName, '--name', 'DYMO', '--vendorid', '0922')
     }
-    Invoke-VBox -Arguments @('startvm', $VMName, '--type', $(if ($Headless) { 'headless' } else { 'gui' })) | Out-Null
+    Invoke-VBoxWhenUnlocked @('startvm', $VMName, '--type', $(if ($Headless) { 'headless' } else { 'gui' }))
     Wait-GuestReady -VM $VMName -PasswordFile $pw | Out-Null
 
     Write-Host "== Copying $($files.Count) file(s) to $guestDir"
+    # The trailing \ tells VirtualBox 7.2 the target is a folder.
     Invoke-VBox -Arguments (@('guestcontrol', $VMName, 'copyto', '--username=Administrator', "--passwordfile=$pw",
-                              "--target-directory=$guestDir") + $files) | Out-Null
+                              "--target-directory=$guestDir\") + $files) | Out-Null
     if ($CopyOnly) {
         Write-Host "Done. In the VM, open $guestDir and double-click ExpoNametagSetup.exe." -ForegroundColor Yellow
         return
@@ -134,6 +145,7 @@ try {
 Check (Test-Path "`$dir\ExpoNametag.exe") 'ExpoNametag.exe installed'
 Check ((Test-Path "`$dir\.env") -and (Get-FileHash "`$dir\.env").Hash -eq '$hash') 'ExpoNametag.env copied in as .env'
 foreach (`$s in `$shortcuts) { Check (Test-Path `$s) "shortcut `$s" }
+Check (-not (Get-Process 'DLS8Setup*' -ErrorAction SilentlyContinue)) 'DYMO setup finished (not still running in the background)'
 Check `$dymoCom 'DYMO COM object (Dymo.DymoAddIn) registered'
 'DYMO drivers:'; pnputil /enum-drivers | Select-String -Context 0,6 'dymo' | ForEach-Object { `$_.ToString() }
 'Apps entries:'; Get-AppsEntries

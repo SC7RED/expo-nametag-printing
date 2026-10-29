@@ -119,8 +119,8 @@ try {
     if ($BaseFolder) { $create += "--basefolder=$BaseFolder" }
     Invoke-VBox -Arguments $create | Out-Null
 
-    # 4 vCPUs on purpose: 2 vCPUs hang Windows 11 24H2+ guests on VirtualBox 7.2.x.
-    Invoke-VBox -Arguments @('modifyvm', $VMName, '--firmware=efi', '--tpm-type=2.0', '--cpus=4', '--memory=8192',
+    # 8 vCPUs: 2 hang Windows 11 24H2+ guests on VirtualBox 7.2.x, and more makes installs faster.
+    Invoke-VBox -Arguments @('modifyvm', $VMName, '--firmware=efi', '--tpm-type=2.0', '--cpus=8', '--memory=8192',
         '--vram=128', '--graphicscontroller=vboxsvga', '--accelerate-3d=off', '--ioapic=on', '--nic1=nat',
         '--nic-type1=82540EM', '--usb-xhci=on', '--mouse=usbtablet', '--audio-enabled=off') | Out-Null
 
@@ -185,8 +185,10 @@ try {
         Write-Warning 'This VBoxManage has no --*-password-file options; passing the passwords as arguments.'
         $ua += @("--user-password=$($secrets.StudentPassword)", "--admin-password=$($secrets.AdminPassword)")
     }
+    # The Guest Additions service only starts after a reboot, and the unattended setup doesn't
+    # reboot on its own, so the post-install command does it (the version check below waits for it).
     $ua += @('--locale=en_US', '--country=US', '--hostname=expo-test.local', '--install-additions',
-             '--post-install-command=net user Administrator /active:yes', '--start-vm=gui')
+             '--post-install-command=net user Administrator /active:yes & shutdown /r /t 15', '--start-vm=gui')
     Invoke-VBox -Arguments $ua | Out-Null
 
     Write-Host "Windows is installing in the VM window. Waiting up to $InstallTimeoutMinutes min for Guest Additions ..."

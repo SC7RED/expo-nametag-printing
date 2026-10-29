@@ -101,10 +101,10 @@ function Read-VMSecrets([string]$Path) {
 }
 
 # Checks once per session that this VirtualBox uses the expected guestcontrol syntax:
-# 'guestcontrol <vm> run ...', --passwordfile, and (optionally) waitrunlevel.
-$script:GuestControlHelp = $null
+# 'guestcontrol <vm> run ...' and --passwordfile.
+$script:GuestControlChecked = $false
 function Get-GuestControlSupport {
-    if ($null -eq $script:GuestControlHelp) {
+    if (-not $script:GuestControlChecked) {
         $help = Get-VBoxHelp 'guestcontrol'
         if ($help -notmatch '--passwordfile') {
             throw "This VBoxManage's guestcontrol help doesn't mention --passwordfile; refusing to pass passwords on the command line."
@@ -112,9 +112,8 @@ function Get-GuestControlSupport {
         if ($help -notmatch 'guestcontrol\s+<[^>]+>\s+run') {
             Write-Warning "Couldn't confirm 'guestcontrol <vm> run' argument order from the help text; continuing with it anyway."
         }
-        $script:GuestControlHelp = [pscustomobject]@{ WaitRunLevel = ($help -match 'waitrunlevel') }
+        $script:GuestControlChecked = $true
     }
-    return $script:GuestControlHelp
 }
 
 # Runs a program in the guest and waits for it. Returns VBoxManage's stdout (the guest
@@ -153,8 +152,9 @@ function Invoke-GuestPowerShell {
         -Arguments @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded)
 }
 
-# Waits for the guest desktop (guestcontrol waitrunlevel, if supported), then until a
-# program can be started as Administrator. Returns the output of 'whoami /groups'.
+# Waits until a program can be started in the guest as Administrator. Returns the output of
+# 'whoami /groups'. (Not 'guestcontrol waitrunlevel desktop': it misses this Windows 11 desktop
+# and sits out its whole timeout.)
 function Wait-GuestReady {
     param(
         [Parameter(Mandatory)][string]$VM,
@@ -162,15 +162,6 @@ function Wait-GuestReady {
         [int]$TimeoutMinutes = 20
     )
     $deadline = (Get-Date).AddMinutes($TimeoutMinutes)
-    if ((Get-GuestControlSupport).WaitRunLevel) {
-        Write-Host "Waiting for the guest desktop (up to $TimeoutMinutes min) ..."
-        [void](Invoke-VBox -Arguments @('guestcontrol', $VM, 'waitrunlevel', "--timeout=$($TimeoutMinutes * 60000)", 'desktop') -AllowFailure)
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "waitrunlevel desktop returned exit code $LASTEXITCODE (e.g. nobody logged in); falling back to polling."
-        }
-    } else {
-        Write-Warning "This VBoxManage has no 'guestcontrol waitrunlevel'; polling instead."
-    }
     Write-Host 'Waiting until commands can run in the guest as Administrator (errors while it boots are expected) ...'
     while ($true) {
         $out = Invoke-Guest -VM $VM -PasswordFile $PasswordFile -Exe 'C:\Windows\System32\whoami.exe' -Arguments @('/groups') -TimeoutSeconds 60 -AllowFailure

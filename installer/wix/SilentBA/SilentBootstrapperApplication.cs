@@ -9,8 +9,9 @@ namespace ExpoNametag.SilentBA
 
     /// <summary>
     /// Runs the bundle's command (install by default, uninstall from Settings > Apps or /uninstall)
-    /// with no UI: Detect, Plan, Apply, Quit. The only thing ever shown is one error box if setup
-    /// fails, and not even that with /quiet.
+    /// with no questions: Detect, Plan, Apply, Quit. A double-click shows a small progress window
+    /// with no buttons; /quiet shows nothing at all. If setup fails, one error box says so
+    /// (not with /quiet).
     /// </summary>
     public sealed class SilentBootstrapperApplication : BootstrapperApplication
     {
@@ -26,11 +27,11 @@ namespace ExpoNametag.SilentBA
         private const int ErrorCancelled = 1223; // the user said No to UAC
         private const int ErrorSuccessRebootRequired = 3010;
 
-        private readonly ManualResetEvent ownerWindowReady = new ManualResetEvent(false);
+        private readonly ManualResetEvent windowReady = new ManualResetEvent(false);
         private IBootstrapperCommand command;
         private LaunchAction action;
-        private OwnerWindow ownerWindow;
-        private IntPtr ownerHandle;
+        private SetupWindow window;
+        private IntPtr windowHandle;
         private long? upgradedBundleDymoPreinstalled;
         private int result;
 
@@ -46,7 +47,7 @@ namespace ExpoNametag.SilentBA
             this.Log("action={0}, display={1}, relation={2}", this.action, this.command.Display, this.command.Relation);
 
             base.OnStartup(args); // starts Run() on its own STA thread
-            this.ownerWindowReady.WaitOne();
+            this.windowReady.WaitOne();
 
             if (this.action == LaunchAction.Help || this.action == LaunchAction.Unknown)
             {
@@ -55,16 +56,17 @@ namespace ExpoNametag.SilentBA
                 return;
             }
 
-            this.engine.Detect(this.ownerHandle);
+            this.engine.Detect(this.windowHandle);
         }
 
         protected override void Run()
         {
-            using (this.ownerWindow = new OwnerWindow())
+            Application.EnableVisualStyles(); // the moving progress bar needs these
+            using (this.window = new SetupWindow(visible: !this.IsQuiet))
             {
-                this.ownerHandle = this.ownerWindow.Handle;
-                this.ownerWindowReady.Set();
-                Application.Run(this.ownerWindow); // returns when Finish() closes the window
+                this.windowHandle = this.window.Handle;
+                this.windowReady.Set();
+                Application.Run(this.window); // returns when Finish() closes the window
             }
 
             this.engine.Quit(this.result);
@@ -158,8 +160,27 @@ namespace ExpoNametag.SilentBA
                 return;
             }
 
-            // The handle parents the UAC prompt; see OwnerWindow.
-            this.engine.Apply(this.ownerHandle);
+            // The handle parents the UAC prompt; see SetupWindow.
+            this.engine.Apply(this.windowHandle);
+        }
+
+        protected override void OnCacheAcquireBegin(CacheAcquireBeginEventArgs args)
+        {
+            base.OnCacheAcquireBegin(args);
+            if (args.PackageOrContainerId == DymoPackageId)
+            {
+                this.window.SetStatus("Getting DYMO Label Software ready...");
+            }
+        }
+
+        protected override void OnExecutePackageBegin(ExecutePackageBeginEventArgs args)
+        {
+            base.OnExecutePackageBegin(args);
+            bool dymo = args.PackageId == DymoPackageId;
+            string name = dymo ? "DYMO Label Software" : "Expo Nametag Printing";
+            this.window.SetStatus(this.action == LaunchAction.Uninstall
+                ? "Removing " + name + "..."
+                : "Installing " + name + "..." + (dymo ? "\nThis takes a few minutes." : ""));
         }
 
         protected override void OnApplyComplete(ApplyCompleteEventArgs args)
@@ -178,6 +199,9 @@ namespace ExpoNametag.SilentBA
             this.Finish(code);
         }
 
+        // /quiet (None) and running inside another installer (Embedded) show nothing.
+        private bool IsQuiet => this.command.Display == Display.None || this.command.Display == Display.Embedded;
+
         private void Finish(int status, string errorMessage = null)
         {
             // Burn's exit code should be a plain Win32 error (e.g. 1223 when UAC is declined), not an HRESULT.
@@ -187,19 +211,32 @@ namespace ExpoNametag.SilentBA
             }
 
             bool failed = status != 0 && status != ErrorSuccessRebootRequired && status != ErrorCancelled;
-            bool quiet = this.command.Display == Display.None || this.command.Display == Display.Embedded;
-            if (failed && !quiet)
+            if (failed && !this.IsQuiet)
             {
                 string message = errorMessage ?? string.Format(
                     "Setup failed (error {0}).\n\nDetails are in the log file:\n{1}",
                     status, this.engine.GetVariableString("WixBundleLog"));
-                // DefaultDesktopOnly keeps the box in front even though our own window is invisible.
+                // DefaultDesktopOnly keeps the box in front of every window, ours included.
                 MessageBox.Show(message, "Expo Nametag Printing setup", MessageBoxButtons.OK,
                     MessageBoxIcon.Error, MessageBoxDefaultButton.Button1, MessageBoxOptions.DefaultDesktopOnly);
             }
 
+            string doneText = null; // null: close right away
+            if (status == 0 && this.action == LaunchAction.Install)
+            {
+                doneText = "Done. Open Expo Nametag Printing from the desktop.";
+            }
+            else if (status == 0 && this.action == LaunchAction.Uninstall)
+            {
+                doneText = "Done. Expo Nametag Printing was removed.";
+            }
+            else if (status == ErrorSuccessRebootRequired)
+            {
+                doneText = "Done. Restart the laptop before using the printer.";
+            }
+
             this.result = status;
-            this.ownerWindow.BeginInvoke(new Action(this.ownerWindow.Close));
+            this.window.CloseAfter(doneText);
         }
 
         private static bool Succeeded(int hresult) => hresult >= 0;
@@ -210,32 +247,92 @@ namespace ExpoNametag.SilentBA
         }
 
         /// <summary>
-        /// A borderless, fully transparent 1x1 window that is never in the taskbar.
-        /// Burn passes its handle to the UAC prompt as the parent. Windows only brings that prompt to
-        /// the foreground when the parent is the foreground window; a hidden window can't be, so this one
-        /// is shown (but invisible) from startup, while the process still has foreground rights.
+        /// The setup window: one line of status and a moving progress bar, no buttons. (DYMO's installer
+        /// reports no progress, so the bar shows that setup is working, not how far along it is.)
+        /// With /quiet it is a borderless, fully transparent 1x1 window instead, never in the taskbar.
+        /// Either way it is shown from startup, while the process still has foreground rights, because Burn
+        /// passes its handle to the UAC prompt as the parent, and Windows only brings that prompt to the
+        /// foreground when the parent is the foreground window.
         /// </summary>
-        private sealed class OwnerWindow : Form
+        private sealed class SetupWindow : Form
         {
-            public OwnerWindow()
+            private readonly bool visible;
+            private readonly Label status = new Label();
+            private bool closing;
+
+            public SetupWindow(bool visible)
             {
+                this.visible = visible;
                 this.Text = "Expo Nametag Printing Setup";
-                this.FormBorderStyle = FormBorderStyle.None;
-                this.ShowInTaskbar = false;
-                this.StartPosition = FormStartPosition.Manual;
-                this.Location = new Point(-2000, -2000);
-                this.Size = new Size(1, 1);
-                this.Opacity = 0;
+                if (!visible)
+                {
+                    this.FormBorderStyle = FormBorderStyle.None;
+                    this.ShowInTaskbar = false;
+                    this.StartPosition = FormStartPosition.Manual;
+                    this.Location = new Point(-2000, -2000);
+                    this.Size = new Size(1, 1);
+                    this.Opacity = 0;
+                    return;
+                }
+
+                this.FormBorderStyle = FormBorderStyle.FixedDialog;
+                this.ControlBox = false; // no close button: setup closes the window itself
+                this.StartPosition = FormStartPosition.CenterScreen;
+                this.Font = SystemFonts.MessageBoxFont;
+                this.ClientSize = new Size(440, 120);
+
+                this.status.SetBounds(20, 20, 400, 44);
+                this.status.Text = "Getting ready...";
+                var bar = new ProgressBar { Style = ProgressBarStyle.Marquee, MarqueeAnimationSpeed = 30 };
+                bar.SetBounds(20, 74, 400, 22);
+                this.Controls.Add(this.status);
+                this.Controls.Add(bar);
             }
 
-            // Keep it out of Alt+Tab.
+            // Safe to call from any thread.
+            public void SetStatus(string text)
+            {
+                this.BeginInvoke(new Action(() => this.status.Text = text));
+            }
+
+            // Shows doneText for 3 seconds and closes; with no text (or when invisible), closes now.
+            public void CloseAfter(string doneText)
+            {
+                this.BeginInvoke(new Action(() =>
+                {
+                    this.closing = true;
+                    if (!this.visible || doneText == null)
+                    {
+                        this.Close();
+                        return;
+                    }
+
+                    this.status.Text = doneText;
+                    var timer = new System.Windows.Forms.Timer { Interval = 3000 };
+                    timer.Tick += (sender, e) => { timer.Stop(); this.Close(); };
+                    timer.Start();
+                }));
+            }
+
+            // Alt+F4 must not close the window mid-install: Run() would then quit the engine.
+            protected override void OnFormClosing(FormClosingEventArgs e)
+            {
+                e.Cancel = !this.closing;
+                base.OnFormClosing(e);
+            }
+
+            // Keep the invisible window out of Alt+Tab.
             protected override CreateParams CreateParams
             {
                 get
                 {
                     const int WS_EX_TOOLWINDOW = 0x80;
                     CreateParams cp = base.CreateParams;
-                    cp.ExStyle |= WS_EX_TOOLWINDOW;
+                    if (!this.visible)
+                    {
+                        cp.ExStyle |= WS_EX_TOOLWINDOW;
+                    }
+
                     return cp;
                 }
             }
