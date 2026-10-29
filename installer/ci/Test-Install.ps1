@@ -143,6 +143,8 @@ function Test-Bundle {
     Assert-That ($code -in 0, 3010) "bundle install exit code 0 or 3010 (got $code)"
     Assert-Installed $expected
     Show-DymoEntries 'after install'
+    $dymoClsid = 'Registry::HKEY_CLASSES_ROOT\Dymo.DymoAddIn\CLSID'
+    Assert-That (Test-Path -LiteralPath $dymoClsid) 'DYMO Label Software installed (Dymo.DymoAddIn registered)'
 
     $log = Join-Path $LogDir 'Bundle-uninstall.log'
     $code = Invoke-Installer $setup "/uninstall /quiet /norestart /log `"$log`"" $log

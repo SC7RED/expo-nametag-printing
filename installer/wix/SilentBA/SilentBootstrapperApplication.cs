@@ -17,6 +17,7 @@ namespace ExpoNametag.SilentBA
         // Must match the ExePackage Id and the Variable name in Bundle.wxs.
         private const string DymoPackageId = "DYMO";
         private const string DymoPreinstalledVariable = "DymoPreinstalled";
+        private const string DymoVersionVariable = "DymoLabelVersion";
 
         // The laptop settings file that must sit next to ExpoNametagSetup.exe (see Package.wxs).
         private const string SettingsFileName = "ExpoNametag.env";
@@ -30,7 +31,6 @@ namespace ExpoNametag.SilentBA
         private LaunchAction action;
         private OwnerWindow ownerWindow;
         private IntPtr ownerHandle;
-        private bool dymoPresent;
         private long? upgradedBundleDymoPreinstalled;
         private int result;
 
@@ -93,16 +93,6 @@ namespace ExpoNametag.SilentBA
             }
         }
 
-        protected override void OnDetectPackageComplete(DetectPackageCompleteEventArgs args)
-        {
-            base.OnDetectPackageComplete(args);
-
-            if (args.PackageId == DymoPackageId)
-            {
-                this.dymoPresent = args.State == PackageState.Present;
-            }
-        }
-
         protected override void OnDetectComplete(DetectCompleteEventArgs args)
         {
             base.OnDetectComplete(args);
@@ -126,9 +116,12 @@ namespace ExpoNametag.SilentBA
                     return;
                 }
 
-                // Record once, on this bundle's first install, whether DYMO was already installed.
+                // Record once, on this bundle's first install, whether any DYMO version was already
+                // installed (Bundle.wxs's search sets DymoLabelVersion to 0.0.0.0 when it finds none).
                 // Later runs keep the persisted value; re-detecting then would see the DYMO we installed.
-                long preinstalled = this.upgradedBundleDymoPreinstalled ?? (this.dymoPresent ? 1 : 0);
+                bool dymoFound = this.engine.ContainsVariable(DymoVersionVariable)
+                    && this.engine.GetVariableVersion(DymoVersionVariable) != "0.0.0.0";
+                long preinstalled = this.upgradedBundleDymoPreinstalled ?? (dymoFound ? 1 : 0);
                 this.engine.SetVariableNumeric(DymoPreinstalledVariable, preinstalled);
                 this.Log("{0}={1}", DymoPreinstalledVariable, preinstalled);
             }

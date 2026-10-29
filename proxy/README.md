@@ -52,6 +52,9 @@ SWAPCARD_YEAR_ID="<id of the School Year field>"
 SWAPCARD_MAJOR_ID="<id of the Major field>"
 ```
 
+To find the two field IDs, run `.\proxy\Get-SwapcardFieldIds.ps1 -EventId <event ID>` (it asks
+for the Swapcard key and lists each field's name and ID).
+
 Put it next to `ExpoNametagSetup.exe`. The installer copies it into the app's folder.
 Never commit it: the repo is public. (`*.env` is already in `.gitignore`.)
 
@@ -68,7 +71,8 @@ You should see the event's title and dates. A wrong token gives a 401 error.
 
 1. In Swapcard Studio, create a new API key for the new event.
 2. In the Worker's settings, update `SWAPCARD_API_KEY` and `SWAPCARD_EVENT_ID`, and set a new `LAPTOP_TOKEN`.
-3. Make a new `ExpoNametag.env` for the laptops.
+3. Make a new `ExpoNametag.env` for the laptops. The field IDs change with each event, so look
+   them up again with `Get-SwapcardFieldIds.ps1`.
 
 **After the Expo:** delete the Swapcard key in Studio and change `LAPTOP_TOKEN`, so nothing
 handed out during the event keeps working.
