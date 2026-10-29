@@ -214,6 +214,11 @@ while True:
 
         if printer is not None and label is not None:
             try:
+                # Start every badge from the saved design: once a field has been set to empty
+                # text, DYMO prints that field in a small default font until the label is reopened.
+                if printer.Open(LABEL_PATH) is False:
+                    raise RuntimeError("could not open label file: " + LABEL_PATH)
+
                 # Print job
                 label.SetField("fn", first_name)
                 label.SetField("ln", last_name)

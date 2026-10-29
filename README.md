@@ -19,7 +19,8 @@ You need two files from the IT chair: `ExpoNametagSetup.exe` and `ExpoNametag.en
 2. Double-click `ExpoNametagSetup.exe` and click **Yes** when Windows asks. A small window shows
    what it's doing (DYMO Label Software, then the app) and closes itself when it's done, after a
    few minutes. There's nothing to click in it.
-3. Plug in the printer and open **Expo Nametag Printing** from the desktop.
+3. Plug in the printer (if it was already plugged in, unplug it and plug it back in, so Windows
+   sets it up with the DYMO driver) and open **Expo Nametag Printing** from the desktop.
 
 To remove everything afterwards: **Settings → Apps → Expo Nametag Printing → Uninstall**.
 

@@ -416,6 +416,7 @@ class AppRun:
         class DymoLabels:
             def SetField(self, name, value):
                 run.set_fields.append((name, value))
+                run.dymo_calls.append(("SetField", (name, value)))  # to check order against Open
                 if run.setfield_error is not None:
                     raise run.setfield_error
                 return True
@@ -765,6 +766,17 @@ class ManualInputTests(AppTestCase):
             expected += setfield_calls("M%d" % i, "L", printed, year, "R%d" % i)
         self.assertEqual(run.set_fields, expected)
 
+    def test_each_badge_reopens_the_label_first(self):
+        # Once a DYMO field has been set to empty text it prints in a small default font until
+        # the label is reopened, so a blank badge must not change how the next one looks.
+        run = run_app([manual("", "", "Civil Engineering", "Senior", ""),
+                       manual("Sam", "Hokie", "Civil Engineering", "Senior", "R1"), close()])
+        self.assertCleanRun(run)
+        order = [method for method, args in run.dymo_calls
+                 if method == "Open" or (method == "SetField" and args[0] == "fn")]
+        # once at startup, then before each badge's fields are set
+        self.assertEqual(order, ["Open", "Open", "SetField", "Open", "SetField"])
+
 
 class StartupEventCheckTests(AppTestCase):
     """(a) The startup event check must not crash without network or an API key."""
@@ -991,7 +1003,8 @@ class PrinterSetupTests(AppTestCase):
     def test_open_gets_absolute_label_path_string(self):
         run = run_app(self.script())
         self.assertCleanRun(run)
-        (path,), = run.method_calls("Open")
+        (path,), (again,) = run.method_calls("Open")  # at startup, then before the badge
+        self.assertEqual(again, path)
         self.assertIsInstance(path, str)
         self.assertTrue(os.path.isabs(path))
         self.assertEqual(norm(path), norm(LABEL_FILE))
@@ -1083,7 +1096,7 @@ class ConfigPathTests(AppTestCase):
         with tempfile.TemporaryDirectory() as elsewhere:
             run = run_app([manual("Sam", "Hokie", "Civil Engineering", "Senior", "R1"), close()], cwd=elsewhere)
         self.assertCleanRun(run)
-        self.assertEqual(run.open_paths, [norm(LABEL_FILE)])
+        self.assertEqual(run.open_paths, [norm(LABEL_FILE)] * 2)  # at startup, then before the badge
         self.assertEqual(run.dotenv_calls, [((os.path.join(REPO_ROOT, ".env"),), {})])
         self.assertPrintedOnce(run, "Sam", "Hokie", "Civil Engineering", "Senior", "R1")
 
