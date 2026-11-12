@@ -5,7 +5,7 @@ A Windows app for the Expo check in tables. Scan a student's Swapcard badge (or 
 ## What you need
 
 * A Windows 10 or 11 laptop
-* A DYMO **LabelWriter 450** or **450 Turbo** printer (the 550 and the 450 Duo don't work)
+* A DYMO **LabelWriter 450** or **450 Turbo** printer
 * Two files that go together:
   * `ExpoNametagSetup.exe`: the installer (see [Getting the installer](#getting-the-installer))
   * `ExpoNametag.env`: the settings file for this year (see [proxy/README.md](proxy/README.md))
