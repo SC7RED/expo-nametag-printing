@@ -2,8 +2,6 @@
 
 A Windows app for the Expo check in tables. Scan a student's Swapcard badge (or type their VT PID) and a DYMO printer prints their name tag.
 
-These instructions are for the **IT committee**, who set up the laptops before the Expo.
-
 ## What you need
 
 * A Windows 10 or 11 laptop
