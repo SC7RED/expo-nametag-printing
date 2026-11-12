@@ -1,79 +1,61 @@
-# Engineering Expo Student Nametag Printing
+# Engineering Expo Nametag Printing
 
-A small Windows app for the Engineering Expo check-in tables. A volunteer scans a student's
-Swapcard badge code (or types their VT PID), the app looks the student up, and a DYMO printer
-prints their name tag. There's also a manual mode for typing a student's details in by hand.
+A Windows app for the Expo check in tables. Scan a student's Swapcard badge (or type their VT PID) and a DYMO printer prints their name tag.
 
-```
-laptop app  ──>  Cloudflare Worker  ──>  Swapcard (student data)
-    │            (holds the API key)
-    └──>  DYMO Label Software  ──>  DYMO LabelWriter 450 printer
-```
+These instructions are for the **IT committee**, who set up the laptops before the Expo.
 
-## Setting up a laptop (volunteers)
+## What you need
 
-You need two files from the IT chair: `ExpoNametagSetup.exe` and `ExpoNametag.env`.
+* A Windows 10 or 11 laptop
+* A DYMO **LabelWriter 450** or **450 Turbo** printer (the 550 and the 450 Duo don't work)
+* Two files that go together:
+  * `ExpoNametagSetup.exe`: the installer (see [Getting the installer](#getting-the-installer))
+  * `ExpoNametag.env`: the settings file for this year (see [proxy/README.md](proxy/README.md))
 
-1. Put both files in the **same folder** on the laptop itself (Desktop, Downloads or a USB stick;
-   not a network drive or an online-only OneDrive folder).
-2. Double-click `ExpoNametagSetup.exe` and click **Yes** when Windows asks. A small window shows
-   what it's doing (DYMO Label Software, then the app) and closes itself when it's done, after a
-   few minutes. There's nothing to click in it.
-3. Plug in the printer (if it was already plugged in, unplug it and plug it back in, so Windows
-   sets it up with the DYMO driver) and open **Expo Nametag Printing** from the desktop.
+## Installing on a laptop
 
-To remove everything afterwards: **Settings → Apps → Expo Nametag Printing → Uninstall**.
+1. Put `ExpoNametagSetup.exe` and `ExpoNametag.env` in the **same folder** on the laptop, like the Desktop or a USB stick.
+2. Double click `ExpoNametagSetup.exe` and click **Yes** when Windows asks. A small window shows the progress and closes by itself in a few minutes.
+3. Plug in the printer. If it was already plugged in, unplug it and plug it back in.
+4. Open **Expo Nametag Printing** from the desktop.
 
-Supported printers: the DYMO **LabelWriter 450** family (450, 450 Turbo). The 550 family does
-not work with DYMO Label Software 8, and the 450 Duo has Windows 11 driver problems.
+If Windows shows a blue "Windows protected your PC" box, click **More info**, then **Run anyway**. Copying the files from a USB stick usually avoids this.
 
-## Each year (IT chair)
+To remove it later: **Settings > Apps > Expo Nametag Printing > Uninstall**.
 
-1. Update the lookup service and make a new `ExpoNametag.env`: see [proxy/README.md](proxy/README.md).
-2. Change `CURRENT_YEAR` in [src/config.py](src/config.py) (it's in the window title).
-3. Build a new installer (below) and hand out `dist\ExpoNametagSetup.exe` with the `.env` file.
+## Getting the installer
 
-The Cloudflare account belongs to the shared IT committee email, so passing that login to
-the next chair is the whole handover.
+**Option 1: Download it from GitHub (easiest)**
 
-## Building the installer
+1. Go to the repo's **Actions** tab and click the newest run with a green check.
+2. Scroll down to **Artifacts** and download the zip. `ExpoNametagSetup.exe` is inside.
 
-One-time setup on a Windows PC (no admin needed):
-- Python 3.13, **32-bit** (DYMO's software is 32-bit): `py install 3.13-32`
-- .NET SDK 8 or later: `winget install Microsoft.DotNet.SDK.10`
+GitHub deletes these after 7 days. If none are left, push any change to rerun it, or build it yourself.
 
-Then, from the repo folder:
+**Option 2: Build it yourself**
+
+On a Windows PC, install these once:
 
 ```powershell
-.\installer\build-app.ps1 -Clean     # the app, as dist\ExpoNametag\ (no Python needed on laptops)
-.\installer\build-installer.ps1      # dist\ExpoNametag.msi and dist\ExpoNametagSetup.exe
+py install 3.13-32
+winget install Microsoft.DotNet.SDK.10
 ```
 
-## Running from source (developers)
+Then download this repo (**Code > Download ZIP**, then unzip it), open PowerShell in that folder and run:
 
 ```powershell
-py -V:3.13-32 -m pip install -r requirements.txt
-copy env.example .env                # then fill it in
-py -V:3.13-32 src\main.py
+powershell -ExecutionPolicy Bypass -File installer\build-app.ps1 -Clean
+powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
 ```
 
-Tests (no packages or printer needed): `python -m unittest discover -s tests -v`
+The installer will be at `dist\ExpoNametagSetup.exe`.
 
-## What's where
+## Every year
 
-| Path | What it is |
-|---|---|
-| [src/main.py](src/main.py) | The app: window, lookups, printing |
-| [src/config.py](src/config.py), [src/query.py](src/query.py) | Settings and the calls to the lookup service |
-| [src/label/student_badge_v3.label](src/label/student_badge_v3.label) | The badge design |
-| [proxy/](proxy/) | The Cloudflare Worker that holds the Swapcard key |
-| [installer/](installer/) | Build scripts, the WiX installer and the PyInstaller spec |
-| [tests/](tests/) | Automated tests (fake network, printer and window) |
-| [tools/test-vm/](tools/test-vm/) | Scripts for a Windows 11 test VM |
-| [.github/workflows/installer.yml](.github/workflows/installer.yml) | Builds and test-installs on every push |
+1. Update the Cloudflare lookup service and make a new `ExpoNametag.env`. Steps are in [proxy/README.md](proxy/README.md).
+2. Change `CURRENT_YEAR` in [src/config.py](src/config.py).
+3. Get a new installer (above) and install it on each laptop.
 
-## Known limits
+The Cloudflare account uses the shared IT committee email, so the only handoff is passing that login to the next chair.
 
-- The installer isn't code-signed, so a downloaded copy shows a SmartScreen warning
-  ("More info → Run anyway"), and laptops with Smart App Control turned on block it.
-  Copying it from a USB stick avoids the SmartScreen warning.
+Having problems? See [troubleshooting-guide.md](troubleshooting-guide.md).
