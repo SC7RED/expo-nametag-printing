@@ -5,7 +5,7 @@ script with runpy against fake versions of its third-party modules:
 
   FreeSimpleGUI    fake elements and a Window whose read() replays a script
   win32com.client  fake Dispatch returning recording DYMO objects
-  requests         fake post() answering like the Swapcard GraphQL API
+  requests         fake Session().post() answering like the Worker (Swapcard's JSON)
   dotenv           load_dotenv() that only records its arguments
 
 The real src/config.py and src/query.py run. time.time() is replaced by a
@@ -183,7 +183,7 @@ def close(dt=10.0, event=None):
 def make_person(first="Jane", last="Doe", major="Mechanical Engineering", year="Junior",
                 barcode="SWC-7Q2M9XP", email="jdoe1@vt.edu", phones=("+1 540-555-0101",),
                 badges=_MISSING, fields=_MISSING):
-    """An eventPerson node shaped like QueryConfig.people_filter_query asks for."""
+    """An eventPerson node like the Worker's answer to query.people_filter_query (plus extras the app ignores)."""
     if fields is _MISSING:
         fields = [
             {"value": "Blacksburg, VA",
@@ -280,7 +280,8 @@ class AppRun:
         self.dymo_calls = []      # (method, args) on the DymoAddIn object
         self.open_paths = []      # Open() args resolved against the CWD at call time
         self.set_fields = []      # (name, value) on the DymoLabels object
-        self.posts = []           # requests.post calls
+        self.posts = []           # Session.post calls
+        self.sessions = 0         # requests.Session objects created
         self.dotenv_calls = []    # load_dotenv args
         self.window = None
         self.window_title = None
@@ -469,7 +470,17 @@ class AppRun:
                 return override
             return run._default_post(call)
 
-        requests.post = post
+        class Session:
+            def __init__(self):
+                run.sessions += 1
+                self.headers = {}
+
+            def post(self, url=None, data=None, json=None, **kwargs):
+                # records the session's headers plus any given for this call, as requests sends them
+                headers = dict(self.headers, **(kwargs.pop("headers", None) or {}))
+                return post(url, data=data, json=json, headers=headers, **kwargs)
+
+        requests.Session = Session
         return requests, exceptions
 
     def _default_post(self, call):
@@ -900,6 +911,57 @@ class LookupFailureTests(AppTestCase):
     def test_no_input(self):
         run = self.run_failure(submit())
         self.assertSkippedThenContinued(run, "Warning - No Input Detected (Content API Query)\n")
+
+
+class ConnectionTests(AppTestCase):
+    """query.py keeps one connection open for every lookup and retries a stale one once."""
+
+    def test_one_session_for_every_lookup(self):
+        run = run_app([submit(BRID="SWC-1"), submit(BRID="SWC-1"), close()],
+                      people={("qrCodes", "SWC-1"): [make_person(barcode="SWC-1")]})
+        self.assertCleanRun(run, reads=3)
+        self.assertEqual(run.sessions, 1)
+        self.assertEqual([p["kind"] for p in run.posts], ["event", "people", "people"])
+        for post in run.posts:
+            self.assertEqual(post["headers"], {"Authorization": API_KEY, "Accept": "application/json"})
+            self.assertEqual(post["timeout"], 5)
+
+    def test_a_stale_connection_is_retried_once(self):
+        replies = [FakeConnectionError("('Connection aborted.', ConnectionResetError(10054))"),
+                   FakeResponse(200, people_payload([make_person(barcode="SWC-1")]))]
+
+        def stale_then_ok(call):
+            reply = replies.pop(0)
+            if isinstance(reply, BaseException):
+                raise reply
+            return reply
+
+        run = run_app([submit(BRID="SWC-1"), close()], people_response=stale_then_ok)
+        self.assertCleanRun(run)
+        self.assertEqual(len(run.people_posts()), 2)
+        self.assertNotIn("Warning", run.stdout)
+        self.assertPrintedOnce(run, "Jane", "Doe", "Mechanical Engineering", "Junior", "SWC-1")
+
+    def test_still_failing_after_the_retry(self):
+        run = run_app([submit(BRID="SWC-1"), close()], people_response=FakeConnectionError("offline"))
+        self.assertCleanRun(run)
+        self.assertEqual(len(run.people_posts()), 2)
+        self.assertEqual(run.stdout.count("Warning - Swapcard lookup failed: FakeConnectionError offline\n"), 1)
+        self.assertEqual(run.set_fields, [])
+
+    def test_timeouts_are_not_retried(self):
+        for err in (FakeConnectTimeout("Connection to host timed out"), FakeReadTimeout("Read timed out")):
+            with self.subTest(type(err).__name__):
+                run = run_app([submit(BRID="SWC-1"), close()], people_response=err)
+                self.assertCleanRun(run)
+                self.assertEqual(len(run.people_posts()), 1)
+                self.assertIn("Warning - Swapcard lookup failed: " + type(err).__name__, run.stdout)
+
+    def test_startup_event_check_retries_too(self):
+        run = run_app([close()], event_response=FakeConnectionError("Failed to resolve"))
+        self.assertCleanRun(run)
+        self.assertEqual([p["kind"] for p in run.posts], ["event", "event"])
+        self.assertEqual(run.stdout.count("Warning - Could not verify event with Swapcard: Failed to resolve\n"), 1)
 
 
 class BadgeCodeShapeTests(AppTestCase):
