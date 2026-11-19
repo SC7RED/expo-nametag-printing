@@ -30,6 +30,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'BuildCommon.ps1')
 
 $PythonTag  = '3.13-32'
 $PythonId   = '3.13-32 32'   # what Get-PythonId prints for Python 3.13, 32-bit
@@ -53,28 +54,6 @@ $PyInstaller = Join-Path $VenvDir 'Scripts\pyinstaller.exe'
 # the run-time hooks it embeds.
 $LicensedPackages = @('FreeSimpleGUI', 'pywin32', 'requests', 'python-dotenv', 'urllib3', 'idna',
                       'charset-normalizer', 'certifi', 'pyinstaller', 'pyinstaller-hooks-contrib')
-
-function Write-Step([string]$Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
-
-function Invoke-Native {
-    # Runs a program, shows its output, and throws if it exits nonzero.
-    # stderr is shown as plain text, because pip and PyInstaller log progress there.
-    param([string]$FilePath, [string[]]$ArgumentList)
-    if (-not (Get-Command $FilePath -ErrorAction SilentlyContinue)) { throw "Not found: $FilePath" }
-    $ErrorActionPreference = 'Continue'   # local to this function
-    & $FilePath @ArgumentList 2>&1 | ForEach-Object { "$_" } | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "$FilePath $($ArgumentList -join ' ') exited with code $LASTEXITCODE" }
-}
-
-function Get-NativeOutput {
-    # Runs a program quietly and returns its first line of output, or $null if it fails.
-    param([string]$FilePath, [string[]]$ArgumentList)
-    if (-not (Get-Command $FilePath -ErrorAction SilentlyContinue)) { return $null }
-    $ErrorActionPreference = 'Continue'   # local to this function
-    $out = @(& $FilePath @ArgumentList 2>$null)
-    if ($LASTEXITCODE -ne 0 -or $out.Count -eq 0) { return $null }
-    return ([string]$out[0]).Trim()
-}
 
 function Get-PythonId([string]$Python) {
     # Prints e.g. "3.13-32 32": sys.winver plus pointer size in bits.
@@ -271,15 +250,14 @@ try {
     Write-Step "Checking $AppDir"
     $problems = New-Object System.Collections.Generic.List[string]
 
-    foreach ($name in @('ExpoNametag.exe')) {
-        $exe = Join-Path $AppDir $name
-        if (-not (Test-Path -LiteralPath $exe)) { $problems.Add("Missing $exe"); continue }
-        $machine = Get-PeMachine $exe
-        if ($machine -eq $X86Machine) {
-            Write-Host "    OK  $name is 32-bit x86 (PE machine 0x14C)"
-        } else {
-            $problems.Add(('{0} is not 32-bit x86 (PE machine 0x{1:X})' -f $exe, $machine))
-        }
+    $exe = Join-Path $AppDir 'ExpoNametag.exe'
+    $machine = if (Test-Path -LiteralPath $exe) { Get-PeMachine $exe } else { $null }
+    if ($null -eq $machine) {
+        $problems.Add("Missing $exe")
+    } elseif ($machine -eq $X86Machine) {
+        Write-Host '    OK  ExpoNametag.exe is 32-bit x86 (PE machine 0x14C)'
+    } else {
+        $problems.Add(('{0} is not 32-bit x86 (PE machine 0x{1:X})' -f $exe, $machine))
     }
 
     $requiredFiles = @(

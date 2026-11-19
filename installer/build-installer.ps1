@@ -35,6 +35,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'BuildCommon.ps1')
 
 $WixVersion    = '5.0.2'
 $WixExtensions = @('WixToolset.Util.wixext')
@@ -50,33 +51,10 @@ $Wix        = Join-Path $env:USERPROFILE '.dotnet\tools\wix.exe'
 if (-not $AppDir) { $AppDir = Join-Path $RepoDir 'dist\ExpoNametag' }
 if (-not $OutDir) { $OutDir = Join-Path $RepoDir 'dist' }
 
-function Write-Step([string]$Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
-
-function Invoke-Native {
-    # Runs a program, shows its output, and throws if it exits nonzero.
-    param([string]$FilePath, [string[]]$ArgumentList)
-    if (-not (Get-Command $FilePath -ErrorAction SilentlyContinue)) { throw "Not found: $FilePath" }
-    $ErrorActionPreference = 'Continue'   # local to this function
-    & $FilePath @ArgumentList 2>&1 | ForEach-Object { "$_" } | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "$FilePath $($ArgumentList -join ' ') exited with code $LASTEXITCODE" }
-}
-
-function Get-NativeLines {
-    # Runs a program quietly and returns its output lines, or an empty array if it fails.
-    param([string]$FilePath, [string[]]$ArgumentList)
-    if (-not (Get-Command $FilePath -ErrorAction SilentlyContinue)) { return @() }
-    $ErrorActionPreference = 'Continue'   # local to this function
-    $out = @(& $FilePath @ArgumentList 2>$null)
-    if ($LASTEXITCODE -ne 0) { return @() }
-    return $out
-}
-
 try {
     # 0. Inputs
     $AppDir = (Resolve-Path -LiteralPath $AppDir).Path
-    foreach ($name in @('ExpoNametag.exe')) {
-        if (-not (Test-Path -LiteralPath (Join-Path $AppDir $name))) { throw "Missing $(Join-Path $AppDir $name)" }
-    }
+    if (-not (Test-Path -LiteralPath (Join-Path $AppDir 'ExpoNametag.exe'))) { throw "Missing $(Join-Path $AppDir 'ExpoNametag.exe')" }
     # The MSI harvests everything in $AppDir, so refuse to package anything that looks like a secret.
     $secrets = @(Get-ChildItem -LiteralPath $AppDir -Recurse -Force -File |
         Where-Object { $_.Name -like '*.env' -or $_.Name -like '.env*' })
