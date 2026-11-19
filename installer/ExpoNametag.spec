@@ -34,7 +34,9 @@ a = Analysis(
     # Because setuptools is in the build venv, PyInstaller maps `backports` to
     # setuptools' vendored copy and would bundle all of setuptools, which the app
     # never uses. Excluding setuptools leaves `backports` missing, as it is at runtime.
-    excludes=['setuptools'],
+    # win32ui (0.9 MB) is only imported by pywin32's makepy GUI and COM browsers;
+    # the app's late-bound Dispatch never loads it.
+    excludes=['setuptools', 'win32ui'],
     noarchive=False,
     optimize=0,
     # FreeSimpleGUI is LGPL-3.0: ship it as plain .py files so it can be replaced.

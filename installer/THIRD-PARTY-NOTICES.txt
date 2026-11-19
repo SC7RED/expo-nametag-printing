@@ -43,7 +43,7 @@ FreeSimpleGUI 5.3.0.post1
 
 pywin32 312
   License : PSF-2.0 (per PyPI metadata). The license files for the parts used
-            here (win32, win32com, pythonwin) are BSD-3-Clause style:
+            here (win32, win32com) are BSD-3-Clause style:
             "Copyright (c) 1994-2008, Mark Hammond" and
             "Copyright (c) 1996-2008, Greg Stein and Mark Hammond".
   Texts   : licenses\pywin32-312-*  (every license file the package declares,
@@ -51,8 +51,8 @@ pywin32 312
   Source  : https://github.com/mhammond/pywin32
             https://pypi.org/project/pywin32/312/
   Bundled : _internal\pywin32_system32\ (pythoncom313.dll, pywintypes313.dll),
-            _internal\win32\, _internal\pythonwin\, and the win32com and
-            win32 modules inside the .exe files
+            _internal\win32\, and the win32com and win32 modules inside the
+            .exe files
 
 requests 2.34.2
   License : Apache-2.0  https://www.apache.org/licenses/LICENSE-2.0
