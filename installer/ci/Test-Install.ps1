@@ -11,6 +11,10 @@
     -Mode Bundle      ExpoNametagSetup.exe /quiet with a dummy ExpoNametag.env next to it (this
                       downloads and installs DYMO Label Software 8.7.4), then /uninstall. Also
                       checks that it refuses to install without the settings file (exit code 2).
+
+.EXAMPLE
+    # From an elevated PowerShell in the repo root, after both build scripts have run:
+    powershell -ExecutionPolicy Bypass -File installer\ci\Test-Install.ps1 -Mode Msi -IKnowThisInstallsSoftware
 #>
 param(
     [Parameter(Mandatory)][ValidateSet('Msi', 'MsiWithEnv', 'Bundle')][string]$Mode,
