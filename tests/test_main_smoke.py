@@ -210,6 +210,11 @@ def make_person(first="Jane", last="Doe", major="Mechanical Engineering", year="
     }
 
 
+def select_field(field_id, value):
+    """One select-field entry as the Worker returns it (one per picked option)."""
+    return {"translations": [{"value": value}], "definition": {"id": field_id}}
+
+
 def people_payload(nodes):
     return {"data": {"eventPerson": {"nodes": nodes}}}
 
@@ -709,10 +714,14 @@ class SwapcardSuccessTests(AppTestCase):
 
     def test_freshman_without_a_major_still_prints(self):
         # Freshmen always print as General Engineering, so a missing major doesn't matter
-        run = run_app([submit(BRID="SWC-1"), close()],
-                      people={("qrCodes", "SWC-1"): [make_person(barcode="SWC-1", major=None, year="Freshman")]})
-        self.assertCleanRun(run)
-        self.assertPrintedOnce(run, "Jane", "Doe", "General Engineering", "Freshman", "SWC-1")
+        for name, person in (
+                ("major is None", make_person(barcode="SWC-1", major=None, year="Freshman")),
+                ("major is empty", make_person(barcode="SWC-1", major="", year="Freshman")),
+                ("no Major field", make_person(barcode="SWC-1", fields=[select_field(YEAR_ID, "Freshman")]))):
+            with self.subTest(name):
+                run = run_app([submit(BRID="SWC-1"), close()], people={("qrCodes", "SWC-1"): [person]})
+                self.assertCleanRun(run)
+                self.assertPrintedOnce(run, "Jane", "Doe", "General Engineering", "Freshman", "SWC-1")
 
     def test_major_special_cases_from_swapcard(self):
         # (year, Swapcard major, major printed on the badge)
@@ -877,6 +886,16 @@ class LookupFailureTests(AppTestCase):
             ("badge without barcode", dict(people=person_with(badges=[{}])), "'barcode'"),
             ("major is None", dict(people=person_with(major=None)), "student record has no major or year"),
             ("year is None", dict(people=person_with(year=None)), "student record has no major or year"),
+            # Bug fixed: a field the student never filled in is missing (major/year stay ''),
+            # which used to print a badge with that field blank instead of this warning.
+            ("no Major field", dict(people=person_with(fields=[select_field(YEAR_ID, "Junior")])),
+             "student record has no major or year"),
+            ("no School Year field",
+             dict(people=person_with(fields=[select_field(MAJOR_ID, "Mechanical Engineering")])),
+             "student record has no major or year"),
+            ("no fields at all", dict(people=person_with(fields=[])), "student record has no major or year"),
+            ("major is empty", dict(people=person_with(major="")), "student record has no major or year"),
+            ("year is empty", dict(people=person_with(year="")), "student record has no major or year"),
             ("major with no translations",
              dict(people=person_with(fields=[{"translations": [], "definition": {"id": MAJOR_ID}}])),
              "list index out of range"),

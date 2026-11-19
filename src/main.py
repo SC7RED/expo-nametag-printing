@@ -171,7 +171,7 @@ while True:
                 regis_id = badges[0]['barcode']
 
                 # a Freshman with no major is fine: the special cases below print General Engineering
-                if year is None or (major is None and "freshman" not in year.lower()):
+                if not year or (not major and "freshman" not in year.lower()):
                     raise ValueError("student record has no major or year")
 
             except Exception as err:
