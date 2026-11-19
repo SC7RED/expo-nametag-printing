@@ -1,5 +1,5 @@
 import requests
-from config import QueryConfig, EXPOEventNotFoundError
+from config import QueryConfig
 
 # Both lookups go to the Cloudflare Worker (proxy/worker.js). It builds the Swapcard
 # query itself and answers in Swapcard's JSON format, so main.py reads it unchanged.
@@ -8,6 +8,12 @@ from config import QueryConfig, EXPOEventNotFoundError
 # which makes each lookup after the first about 0.3 s faster.
 session = requests.Session()
 session.headers.update(QueryConfig.headers)
+
+
+class EXPOEventNotFoundError(Exception):
+
+    def __init__(self, status_code: int, message: str) -> None:
+        super().__init__('Request status code: ' + str(status_code) + '\n' + message)
 
 
 def _post(body):

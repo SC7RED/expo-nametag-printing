@@ -681,7 +681,8 @@ class SwapcardSuccessTests(AppTestCase):
         self.assertEqual(lookup["body"], {"lookup": "person", "filters": {"qrCodes": "SWC-7Q2M9XP"}})
         self.assertEqual(lookup["timeout"], 5)
         self.assertIn(repr(people_payload([person])) + "\n", run.stdout)
-        self.assertIn("#" * 10 + " Query Logged " + "#" * 10 + "\n\n", run.stdout)
+        # nothing is logged anywhere any more (the Google Sheets log is gone), so no "Query Logged" line
+        self.assertNotIn("Query Logged", run.stdout)
         self.assertNotIn("Warning", run.stdout)
 
     def test_lookup_by_pid_without_domain(self):
@@ -723,6 +724,15 @@ class SwapcardSuccessTests(AppTestCase):
                 self.assertCleanRun(run)
                 self.assertPrintedOnce(run, "Jane", "Doe", "General Engineering", "Freshman", "SWC-1")
 
+    def test_double_major_prints_the_last_major_listed(self):
+        # Each picked option of the Major field is its own entry; the last one wins (as in past Expos)
+        fields = [select_field(MAJOR_ID, "Aerospace Engineering"), select_field(YEAR_ID, "Junior"),
+                  select_field(MAJOR_ID, "Mechanical Engineering")]
+        run = run_app([submit(BRID="SWC-1"), close()],
+                      people={("qrCodes", "SWC-1"): [make_person(barcode="SWC-1", fields=fields)]})
+        self.assertCleanRun(run)
+        self.assertPrintedOnce(run, "Jane", "Doe", "Mechanical Engineering", "Junior", "SWC-1")
+
     def test_major_special_cases_from_swapcard(self):
         # (year, Swapcard major, major printed on the badge)
         cases = [
@@ -749,6 +759,7 @@ class SwapcardSuccessTests(AppTestCase):
         for i, (year, _, printed_major) in enumerate(cases):
             expected += setfield_calls("S%d" % i, "Doe", printed_major, year, "SWC-%04d" % i)
             self.assertIn(nametag_block("S%d" % i, "Doe", printed_major, year, "SWC-%04d" % i), run.stdout)
+            self.assertIn(printed_major, MAJORS, "a special case printed a major that isn't in the Major list")
         self.assertEqual(run.set_fields, expected)
         self.assertEqual(len(run.method_calls("Print")), len(cases))
 
@@ -920,12 +931,12 @@ class LookupFailureTests(AppTestCase):
         # empty nodes keep the original, more specific warning
         run = self.run_failure(submit(BRID="SWC-UNKNOWN"))
         self.assertSkippedThenContinued(
-            run, "Warning - Invaild registration ID. EventPerson can not be resolved.\n")
+            run, "Warning - Invalid registration ID. EventPerson can not be resolved.\n")
 
     def test_unknown_pid(self):
         run = self.run_failure(submit(PID="nobody"))
         self.assertSkippedThenContinued(
-            run, "Warning - Invaild PID/VT email. EventPerson can not be resolved.\n")
+            run, "Warning - Invalid PID/VT email. EventPerson can not be resolved.\n")
 
     def test_no_input(self):
         run = self.run_failure(submit())
