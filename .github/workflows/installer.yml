@@ -1,6 +1,6 @@
 # Builds the app, the MSI and the Setup bundle on a clean Windows runner, then checks that
 # they install and uninstall silently. This repository is public: no secrets are used, and the
-# key files and blobs the tests install hold dummy values; the key files are never uploaded.
+# settings files the tests install hold dummy values and are never uploaded.
 name: Installer
 
 on:
@@ -51,10 +51,8 @@ jobs:
           PYTHON: ${{ steps.py.outputs.python-path }}
         run: .\installer\build-app.ps1 -Clean -PythonExe $env:PYTHON
 
-      # The image has the .NET SDK, and build-installer.ps1 installs WiX itself: from a repo-local
-      # tool manifest (.config\dotnet-tools.json) via 'dotnet tool restore' if there is one,
-      # otherwise as a global tool (the image puts %USERPROFILE%\.dotnet\tools on PATH, and the
-      # script runs wix.exe by full path anyway). Either way no extra step is needed here.
+      # The image has the .NET SDK, and build-installer.ps1 installs WiX 5.0.2 itself as a dotnet
+      # global tool (it runs wix.exe by its full path), so no extra step is needed here.
       - name: Build the MSI and the Setup bundle (WiX)
         run: .\installer\build-installer.ps1
 

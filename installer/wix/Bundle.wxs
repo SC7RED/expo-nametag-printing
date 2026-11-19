@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  ExpoNametagSetup.exe: installs DYMO Label Software 8.7.4, then the app MSI, with no UI except one UAC prompt.
+  ExpoNametagSetup.exe: installs DYMO Label Software 8.7.4, then the app MSI. Nothing to click except one UAC
+  prompt: a double-click shows a small progress window, /quiet shows nothing (see SilentBA\).
   ExpoNametag.env (the laptop settings) must be next to it on a first install.
   Built by installer\build-installer.ps1:
     wix build Bundle.wxs -ext WixToolset.Util.wixext -d BADir=<SilentBA output> -d MsiPath=<ExpoNametag.msi> -d Version=1.0.0
@@ -39,7 +40,7 @@
     <Chain>
       <!--
         DYMO's installer is proprietary, so it is not embedded: Burn uses DLS8Setup8.7.4.exe from
-        next to Setup.exe if it's there, otherwise downloads it and checks Size and Hash (SHA-512).
+        next to ExpoNametagSetup.exe if it's there, otherwise downloads it and checks Size and Hash (SHA-512).
         InstallShield switches: /s silent, /w wait for the MSI, /f2 InstallShield's own log,
         /v passes options to msiexec (inner quotes escaped as \"). Both logs go next to the
         bundle's log, because InstallShield's exit code doesn't always report a failure.

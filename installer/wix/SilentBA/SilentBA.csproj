@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    Burn bootstrapper application with no UI, for WiX v5.0.2. In v5 a managed BA is its own
+    Burn bootstrapper application that asks no questions, for WiX v5.0.2. In v5 a managed BA is its own
     32-bit exe that Burn starts out of process (WixToolset.BootstrapperApplicationApi).
   -->
   <PropertyGroup>
