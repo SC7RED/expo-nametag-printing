@@ -14,8 +14,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $secureKey = Read-Host 'Swapcard API key (typing is hidden)' -AsSecureString
-$key = [Runtime.InteropServices.Marshal]::PtrToStringBSTR(
-    [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey))
+$key = [Net.NetworkCredential]::new('', $secureKey).Password
 
 # Field values come with each attendee, so read a page of attendees and collect the field definitions.
 $query = @'
